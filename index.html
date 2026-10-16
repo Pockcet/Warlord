@@ -131,6 +131,7 @@ body.touch #prompt{bottom:84px;font-size:17px}
 .villonly{display:none}
 body.vill .villonly{display:flex}
 #bAct{right:36px;bottom:230px;width:74px;height:74px;font-size:19px}
+input,textarea{-webkit-user-select:text;user-select:text;touch-action:manipulation}
 #mpPanel{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(10,10,16,.78)}
 #mpPanel[hidden]{display:none}
 #mpPanel label{display:block;font-weight:700;font-size:15px;margin:8px 0 2px}
@@ -293,8 +294,8 @@ body.touch #mpBoard{top:auto;bottom:8px;right:50%;transform:translateX(50%);font
     <h1 id="mpTitle">Online</h1>
     <p class="sub">Play with friends over the internet. This needs your own free Supabase project (see the README) and this page hosted on a normal website such as GitHub Pages.</p>
     <div id="mpConnect">
-      <label for="mpUrl">Supabase project URL</label><input id="mpUrl" type="text" placeholder="https://abcd1234.supabase.co" autocomplete="off" spellcheck="false">
-      <label for="mpKey">Supabase anon (public) key</label><input id="mpKey" type="text" autocomplete="off" spellcheck="false">
+      <label for="mpUrl">Supabase project URL</label><input id="mpUrl" type="text" placeholder="https://abcd1234.supabase.co" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <label for="mpKey">Supabase anon or publishable key</label><input id="mpKey" type="text" placeholder="sb_publishable_... or eyJ..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       <label for="mpName">Your name</label><input id="mpName" type="text" maxlength="16" placeholder="Warlord" autocomplete="off">
       <label>Match type</label>
       <div class="seg" id="segMpMode" role="group" aria-label="Match type">
@@ -303,7 +304,7 @@ body.touch #mpBoard{top:auto;bottom:8px;right:50%;transform:translateX(50%);font
       </div>
       <div class="mprow"><button class="mpb" id="mpCreate">Create room</button></div>
       <div class="mprow"><input id="mpCode" type="text" maxlength="5" placeholder="CODE" autocomplete="off"><button class="mpb" id="mpJoin">Join room</button></div>
-      <div class="mprow"><button class="mpb alt" id="mpBoardBtn">Leaderboard</button></div>
+      <div class="mprow"><button class="mpb alt" id="mpTest">Test connection</button><button class="mpb alt" id="mpBoardBtn">Leaderboard</button></div>
       <div id="mpBoardList"></div>
     </div>
     <div id="mpLobby" hidden>
@@ -315,7 +316,7 @@ body.touch #mpBoard{top:auto;bottom:8px;right:50%;transform:translateX(50%);font
     <button class="mpb alt" id="mpClose">Back</button>
   </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (()=>{
@@ -1789,8 +1790,40 @@ try{const v=JSON.parse(localStorage.getItem('warlord-mp')||'{}');if(v.url)MP.cfg
 function mpSave(){try{localStorage.setItem('warlord-mp',JSON.stringify({url:MP.cfg.url,key:MP.cfg.key,name:MP.name}));}catch(e){}}
 function mpStatus(t){const el=$('mpStatus');if(el)el.textContent=t;}
 function mpSend(o){if(!MP.ch||!MP.on)return;try{MP.ch.send({type:'broadcast',event:'m',payload:o});}catch(e){}}
-function mpReadFields(){MP.cfg.url=$('mpUrl').value.trim();MP.cfg.key=$('mpKey').value.trim();MP.name=($('mpName').value||'Warlord').trim().slice(0,16);mpSave();}
+function mpReadFields(){
+  let u=($('mpUrl').value||'').trim().replace(/^["']|["']$/g,'');
+  let k=($('mpKey').value||'').replace(/\s+/g,'').replace(/^["']|["']$/g,'').replace(/^Bearer/i,'');
+  if(u&&!/^https?:\/\//i.test(u))u=/^[a-z0-9]{15,30}$/i.test(u)?'https://'+u.toLowerCase()+'.supabase.co':'https://'+u;
+  u=u.replace(/\/rest\/v1.*$/i,'').replace(/\/+$/,'');
+  let bad='';
+  if(/^sb_secret_/i.test(k))bad='That is a SECRET key. Never put it in a game. Use the publishable key (sb_publishable_...) or the anon key.';
+  else if(k.split('.').length===3){try{const pl=JSON.parse(atob(k.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));if(pl.role==='service_role')bad='That is the service_role key. Never put it in a game. Use the anon key instead.';}catch(e){}}
+  MP.cfg.url=u;MP.cfg.key=k;MP.bad=bad;$('mpUrl').value=u;$('mpKey').value=k;
+  MP.name=($('mpName').value||'Warlord').trim().slice(0,16);mpSave();
+}
+function mpExplain(error,what){
+  if(!error)return 'Could not '+what+'.';
+  const m=String(error.message||error),c=String(error.code||''),st=error.status||0;
+  if(c==='PGRST202'||/could not find the function/i.test(m))return 'The database function is missing. Run all of supabase_schema.sql in the SQL Editor, then try again. ('+m+')';
+  if(c==='PGRST205'||c==='42P01'||/could not find the table/i.test(m))return 'The tables are missing. Run all of supabase_schema.sql in the SQL Editor. ('+m+')';
+  if(c==='42501'||/permission denied/i.test(m))return 'Permission denied. Run the whole supabase_schema.sql again so the grants are applied. ('+m+')';
+  if(st===401||st===403||/invalid api key|invalid jwt|jwt/i.test(m))return 'Supabase rejected the key ('+m+'). Use the anon key (starts eyJ...) or the publishable key (starts sb_publishable_...) from Project Settings > API Keys, and check the URL is from the same project.';
+  if(/failed to fetch|networkerror|load failed/i.test(m))return 'Could not reach Supabase. Check the project URL and your internet. Claude artifact pages cannot connect; use your GitHub Pages site.';
+  return 'Could not '+what+': '+m+(c?' ['+c+']':'');
+}
+async function mpTest(){
+  initAudio();mpReadFields();const sb=mpClient();if(!sb)return;mpStatus('Testing...');
+  try{
+    let r=await sb.from('rooms').select('id').limit(1);
+    if(r.error){mpStatus('Step 1 (read the rooms table) failed. '+mpExplain(r.error,'read the rooms table'));return;}
+    r=await sb.rpc('join_room',{p_code:'ZZZZZ'});
+    if(r.error&&/room not found/i.test(r.error.message)){mpStatus('Connected. The key works, the tables exist and the functions answer. You can create a room now.');return;}
+    if(r.error){mpStatus('Step 2 (call join_room) failed. '+mpExplain(r.error,'call join_room'));return;}
+    mpStatus('Connected.');
+  }catch(e){mpStatus('Network error: '+e.message);}
+}
 function mpClient(){
+  if(MP.bad){mpStatus(MP.bad);return null;}
   if(MP.sb&&MP.sbKey===MP.cfg.url+'|'+MP.cfg.key)return MP.sb;
   if(!window.supabase||!window.supabase.createClient){mpStatus('The Supabase library did not load. Online play needs internet access and a normal web page such as GitHub Pages.');return null;}
   if(!MP.cfg.url||!MP.cfg.key){mpStatus('Enter your Supabase URL and anon key first.');return null;}
@@ -1801,7 +1834,7 @@ function mpClient(){
 async function mpCreate(){
   initAudio();unlockSpeech();mpReadFields();const sb=mpClient();if(!sb)return;mpStatus('Creating room...');
   try{const{data,error}=await sb.rpc('create_room',{p_host:MP.name,p_mode:MP.pendingMode,p_max:8});
-    if(error||!data){mpStatus('Could not create a room: '+(error?error.message:'no data')+'. Did you run the SQL file?');return;}
+    if(error||!data){mpStatus(mpExplain(error||'no data','create a room'));return;}
     const row=Array.isArray(data)?data[0]:data;mpEnter(row.code,true,row.mode);}
   catch(e){mpStatus('Network error: '+e.message);}
 }
@@ -1810,7 +1843,7 @@ async function mpJoin(){
   const code=($('mpCode').value||'').trim().toUpperCase();if(!code){mpStatus('Enter a room code.');return;}
   mpStatus('Joining...');
   try{const{data,error}=await sb.rpc('join_room',{p_code:code});
-    if(error||!data){mpStatus('Could not join: '+(error?error.message:'room not found'));return;}
+    if(error||!data){mpStatus(mpExplain(error||'room not found','join the room'));return;}
     const row=Array.isArray(data)?data[0]:data;mpEnter(row.code,false,row.mode);}
   catch(e){mpStatus('Network error: '+e.message);}
 }
@@ -1983,7 +2016,7 @@ async function mpLeave(){
 async function mpBoardLoad(){
   mpReadFields();const sb=mpClient();if(!sb)return;const el=$('mpBoardList');el.textContent='Loading...';
   try{const{data,error}=await sb.from('leaderboard').select('player_name,mode,best_kills,matches').order('best_kills',{ascending:false}).limit(10);
-    if(error){el.textContent='Could not load: '+error.message;return;}
+    if(error){el.textContent=mpExplain(error,'load the leaderboard');return;}
     el.innerHTML='';(data||[]).forEach((r,i)=>{const d=document.createElement('div');d.textContent=(i+1)+'. '+r.player_name+' ('+(r.mode==='coop'?'co-op':'ffa')+'): '+r.best_kills+' kills, '+r.matches+' matches';el.appendChild(d);});
     if(!data||!data.length)el.textContent='No scores yet.';}
   catch(e){el.textContent='Network error: '+e.message;}
@@ -1994,7 +2027,7 @@ function mpBind(){
   $('mpClose').addEventListener('click',()=>{$('mpPanel').hidden=true;});
   $('mpCreate').addEventListener('click',mpCreate);$('mpJoin').addEventListener('click',mpJoin);
   $('mpStart').addEventListener('click',()=>{initAudio();unlockSpeech();mpHostStart();lockPointer();});
-  $('mpLeaveBtn').addEventListener('click',mpLeave);$('mpBoardBtn').addEventListener('click',mpBoardLoad);
+  $('mpLeaveBtn').addEventListener('click',mpLeave);$('mpBoardBtn').addEventListener('click',mpBoardLoad);$('mpTest').addEventListener('click',mpTest);
   $('segMpMode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;MP.pendingMode=b.dataset.v;for(const c of $('segMpMode').children)c.setAttribute('aria-pressed',String(c===b));});
 }
 
