@@ -121,6 +121,16 @@ body.god .tsm.godonly{display:flex}
 body.god #hp{display:none}
 #hotbar.god{flex-wrap:wrap;justify-content:center;max-width:94vw}
 #hotbar.god .slot{width:70px}
+#villHud{display:none;position:absolute;left:16px;top:62px;line-height:1.4;font-size:16px;max-width:260px}
+body.vill #villHud{display:block}
+body.vill #counts{display:none}
+#villHud i{color:#f2c75c;font-style:normal}
+#prompt{position:absolute;left:50%;transform:translateX(-50%);bottom:150px;padding:8px 16px;background:rgba(10,10,14,.72);border:1px solid #f2c75c;border-radius:4px;font-size:19px;white-space:nowrap}
+#prompt[hidden]{display:none}
+body.touch #prompt{bottom:84px;font-size:17px}
+.villonly{display:none}
+body.vill .villonly{display:flex}
+#bAct{right:36px;bottom:230px;width:74px;height:74px;font-size:19px}
 @media (prefers-reduced-motion: reduce){.cap{animation:none}}
 @media (prefers-reduced-motion: reduce){#banner,#hpfill{transition:none}}
 </style>
@@ -147,6 +157,8 @@ body.god #hp{display:none}
   <div id="cross"></div>
   <canvas id="radar" width="150" height="150"></canvas>
   <div id="godTag" hidden></div>
+  <div id="villHud"></div>
+  <div id="prompt" hidden></div>
   <div id="flash"></div>
   <div id="povTag" hidden></div>
   <div id="caps"></div>
@@ -160,6 +172,7 @@ body.god #hp{display:none}
     <div class="tb" id="bBlk">Block</div>
     <div class="tb" id="bJmp">Jump</div>
     <div class="tb" id="bRal">Rally</div>
+    <div class="tb villonly" id="bAct">Act</div>
     <div id="tTop"><span class="tb tsm" id="bPrev">&lsaquo;</span><span id="wname">Longsword</span><span class="tb tsm" id="bNext">&rsaquo;</span></div>
     <div id="tCmd"><span class="tb tsm" data-c="charge">Charge</span><span class="tb tsm" data-c="hold">Hold</span><span class="tb tsm" data-c="follow">Follow</span></div>
     <div id="tSys"><span class="tb tsm" id="bHorse">Horse</span><span class="tb tsm" id="bPov">Soldier</span><span class="tb tsm godonly" id="bTime">Time</span><span class="tb tsm godonly" id="bPeace">Peace</span><span class="tb tsm" id="bCam">View</span><span class="tb tsm" id="bGoreT">Gore</span><span class="tb tsm" id="bPause">Pause</span></div>
@@ -175,6 +188,7 @@ body.god #hp{display:none}
       <div class="seg" id="segMode" role="group" aria-label="Mode">
         <button data-v="war"><b>Warlord</b><small>Lead your army and fight in the battle yourself.</small></button>
         <button data-v="god"><b>God</b><small>You cannot die. Fly the battlefield and choose what happens: smite, spawn, heal, resurrect, dismember. Applies to your next battle.</small></button>
+        <button data-v="village"><b>Village</b><small>Protect a village from night raids. Talk to villagers, run errands, earn coins, hire guards. Survive seven days. Applies to your next battle.</small></button>
       </div>
     </fieldset>
     <fieldset><legend>Gore level</legend>
@@ -250,6 +264,7 @@ body.god #hp{display:none}
       <div><kbd>F</kbd>Rally cry heals and empowers your army</div>
       <div><kbd>Y</kbd>See through a soldier's eyes, <kbd>Q E</kbd> switch soldier</div>
       <div><kbd>H</kbd>Cycle graphics quality</div>
+      <div><kbd>E</kbd>Village mode: talk to villagers, use the well, woodpile, stall and town board</div>
       <div><kbd>God mode</kbd> WASD, Space and Q E to fly, click for a power, wheel to switch, T time, N war or peace</div>
       <div><kbd>J</kbd>Cycle soldier voices, <kbd>K</kbd> who speaks</div>
       <div><kbd>R</kbd>Mount or dismount your horse, <kbd>0</kbd> lance</div>
@@ -359,7 +374,7 @@ function G(x,z){
   for(let i=0;i<3;i++){const p=PONDS[i],dx=x-p[0],dz=z-p[1],d2=dx*dx+dz*dz,r2=p[2]*p[2];h=h*(1-Math.exp(-d2/(r2*6)))-3.2*Math.exp(-d2/r2);}
   return h;
 }
-const OBST=[],ANIM=[];
+const OBST=[],ANIM=[],INTERACT=[],HOUSES=[];
 (()=>{
   const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');x.fillStyle='#55713a';x.fillRect(0,0,256,256);
   for(let i=0;i<3500;i++){x.fillStyle=pick(['#4a6733','#617f40','#5a7638','#6a8a45','#47602f','#7a7a4a']);x.fillRect(Math.random()*256,Math.random()*256,rnd(1,3),rnd(1,4));}
@@ -422,7 +437,7 @@ const OBST=[],ANIM=[];
     const rf=so(new THREE.Mesh(new THREE.ConeGeometry(r*1.3,r*1.6,10),roofMat));rf.position.set(x,by+h+.8+r*.8,z);scene.add(rf);
     OBST.push({x,z,r:r+.4});
   }
-  function house(x,z,w,d,h,mat,roofMat){
+  function house(x,z,w,d,h,mat,roofMat){HOUSES.push({x,z,sr:Math.max(w,d)/2+2.2});
     const by=Math.max(G(x-w/2,z-d/2),G(x+w/2,z-d/2),G(x-w/2,z+d/2),G(x+w/2,z+d/2));
     const b=so(new THREE.Mesh(new THREE.BoxGeometry(w,h+3,d),mat));b.position.set(x,by+h/2-1.5,z);scene.add(b);
     const rf=so(new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*.78,h*.7,4),roofMat));rf.rotation.y=Math.PI/4;rf.position.set(x,by+h+h*.35,z);scene.add(rf);
@@ -441,6 +456,27 @@ const OBST=[],ANIM=[];
   }
   fort(-45,-40,30,1,1);fort(45,40,30,0,-1);
   for(const[vx,vz]of[[-88,-30],[84,28]])for(let i=0;i<7;i++){const a=i/7*6.283+rnd(-.2,.2),r2=rnd(8,20),X=vx+Math.cos(a)*r2,Z=vz+Math.sin(a)*r2;if(G(X,Z)<-.5)continue;house(X,Z,rnd(4.5,7),rnd(4,6),rnd(2.6,3.4),plankM,Math.random()<.5?roofM:thatchM);}
+  for(const[cx,cz]of[[84,28],[-88,-30]]){
+    const gy=G(cx,cz);
+    const wb=so(new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.2,1.1,10),stone));wb.position.set(cx,gy+.5,cz);scene.add(wb);
+    for(const px of[-.9,.9]){const post=so(new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,2.2,6),plankM));post.position.set(cx+px,gy+1.6,cz);scene.add(post);}
+    const wr=so(new THREE.Mesh(new THREE.ConeGeometry(1.5,.8,4),roofM));wr.rotation.y=Math.PI/4;wr.position.set(cx,gy+3.1,cz);scene.add(wr);
+    OBST.push({x:cx,z:cz,r:1.4});INTERACT.push({x:cx,z:cz,r:3,type:'well',label:'Draw water from the well'});
+    const wx=cx+5,wz=cz+2,wy=G(wx,wz);
+    for(let r=0;r<3;r++)for(let c=0;c<4-r;c++){const lg=so(new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,1.7,6),plankM));lg.rotation.z=Math.PI/2;lg.position.set(wx,wy+.25+r*.38,wz-.8+c*.42+r*.2);scene.add(lg);}
+    OBST.push({x:wx,z:wz,r:1.3});INTERACT.push({x:wx,z:wz,r:3,type:'wood',label:'Pick up firewood'});
+    const sx2=cx-5,sz2=cz+3,sy2=G(sx2,sz2);
+    const tb=so(new THREE.Mesh(new THREE.BoxGeometry(2.2,.9,1.1),plankM));tb.position.set(sx2,sy2+.45,sz2);scene.add(tb);
+    const aw=so(new THREE.Mesh(new THREE.BoxGeometry(2.6,.1,1.6),roofM));aw.position.set(sx2,sy2+2.2,sz2);aw.rotation.x=.18;scene.add(aw);
+    for(const px of[-1.1,1.1]){const pl=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,2.2,6),plankM);pl.position.set(sx2+px,sy2+1.1,sz2+.55);scene.add(pl);}
+    for(let i=0;i<4;i++){const lf=new THREE.Mesh(new THREE.BoxGeometry(.3,.16,.18),thatchM);lf.position.set(sx2-.7+i*.45,sy2+.98,sz2);scene.add(lf);}
+    OBST.push({x:sx2,z:sz2,r:1.4});INTERACT.push({x:sx2,z:sz2,r:3,type:'stall',label:'Take bread from the stall'});
+    const bx=cx,bz=cz-5.5,bgy=G(bx,bz);
+    const bp=so(new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,2.6,6),plankM));bp.position.set(bx,bgy+1.3,bz);scene.add(bp);
+    const bd=so(new THREE.Mesh(new THREE.BoxGeometry(1.7,1.1,.12),plankM));bd.position.set(bx,bgy+2.2,bz);scene.add(bd);
+    const sgn=new THREE.Mesh(new THREE.BoxGeometry(1.4,.8,.04),teamRoof[0]);sgn.position.set(bx,bgy+2.2,bz+.09);scene.add(sgn);
+    OBST.push({x:bx,z:bz,r:.8});INTERACT.push({x:bx,z:bz,r:3,type:'board',label:'Hire a guard (30 coins)'});
+  }
   for(const[x,z]of[[-20,-8],[22,6],[-85,25],[80,-20],[0,45],[0,-45]])tower(x,z,10,2.2,roofM);
   {const wx=65,wz=-72,by=G(wx,wz),body=so(new THREE.Mesh(new THREE.CylinderGeometry(2.2,3.2,9,8),plankM));body.position.set(wx,by+3,wz);scene.add(body);
    const cap=so(new THREE.Mesh(new THREE.ConeGeometry(2.8,2.6,8),roofM));cap.position.set(wx,by+8.3,wz);scene.add(cap);
@@ -640,9 +676,9 @@ function makeUnit(team,x,z,wi,o){
     walk:rnd(0,6),spd:0,atkT:-1,atkDur:1,hitDone:true,stun:0,cd:rnd(0,1),target:null,tt:rnd(0,.5),dead:false,asleep:false,sleepN:0,deadT:0,
     P:new Float32Array(45),Q:new Float32Array(45),grp:new Int32Array(15),cons:[],segs:[],caps:[],bleeds:[],cut:{},meshes:[],gibbed:false,
     headGone:false,isPlayer:!!o.player,block:false,buff:0,slot:rnd(0,6.28),slotR:rnd(2.5,9),pool:false,lastHit:-99,hideBody:false,
-    speed:o.mount?rnd(7,8.2):rnd(2.7,3.5)*(o.armor==='plate'?.9:1),armor:o.armor||'none',armorRed:o.mount?.45:({none:0,mail:.2,plate:.4})[o.armor||'none'],mount:!!o.mount,retreatT:0,g:o.f?'f':'m',name:o.player?'Warlord':(o.mount?(o.f?'Dame ':'Sir '):'')+pick(o.f?NAMES.f:NAMES.m),pit:rnd(.88,1.15),bw:o.f?.92:1.03,lastSpeak:-9,sayQ:null,wd:new THREE.Vector3(0,1,0),dirty:true,wMesh:null,_g:false,_h:false};
+    civ:!!o.civ,hidden:false,need:null,needT:rnd(8,22),workT:rnd(2,8),hideT:0,wp:null,speed:o.mount?rnd(7,8.2):rnd(2.7,3.5)*(o.armor==='plate'?.9:1),armor:o.armor||'none',armorRed:o.mount?.45:({none:0,mail:.2,plate:.4})[o.armor||'none'],mount:!!o.mount,retreatT:0,g:o.f?'f':'m',name:o.player?'Warlord':(o.mount?(o.f?'Dame ':'Sir '):'')+pick(o.f?NAMES.f:NAMES.m),pit:rnd(.88,1.15),bw:o.f?.92:1.03,lastSpeak:-9,sayQ:null,wd:new THREE.Vector3(0,1,0),dirty:true,wMesh:null,_g:false,_h:false};
   s.grp.fill(1);
-  const tm=o.player?matGold:pick(teamMats[team]);
+  const tm=o.player?matGold:o.civ?pick(matCiv):pick(teamMats[team]);
   const mm={torso:tm,skin:matSkin,steel:matSteel,pants:matPants[team],boots:matBoots[team]};
   const pm=(i,tag)=>{
     if(s.armor==='plate'){if(i===0)return tm;if([2,3,4,5,6,7,10,12].includes(i))return matPlate;if(i===11||i===13)return matSteelD;}
@@ -655,6 +691,7 @@ function makeUnit(team,x,z,wi,o){
   if(s.armor==='plate'){s.pauld=[0,1].map(()=>{const m=new THREE.Mesh(pauldGeo,matPlate);scene.add(m);s.meshes.push(m);return m;});}
   if(s.mount&&!o.player){s.plume=new THREE.Mesh(plumeGeo,tm);scene.add(s.plume);s.meshes.push(s.plume);}
   if(s.mount)attachHorse(s);
+  if(o.civ){s.mark=new THREE.Mesh(markGeo,new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}));scene.add(s.mark);s.meshes.push(s.mark);}
   s.wMesh=protos[wi].clone();scene.add(s.wMesh);s.meshes.push(s.wMesh);
   poseAlive(s);
   for(const c of CONS){const a=c[0]*3,b=c[1]*3;s.cons.push([c[0],c[1],Math.hypot(s.P[a]-s.P[b],s.P[a+1]-s.P[b+1],s.P[a+2]-s.P[b+2])]);}
@@ -683,6 +720,7 @@ function renderUnit(s){
   s.helm.position.set(P[HEAD*3]+v1.x*.04,P[HEAD*3+1]+v1.y*.04,P[HEAD*3+2]+v1.z*.04);s.helm.quaternion.setFromUnitVectors(UP,v1);
   if(s.pauld){const vp=!s._far&&!s.pov;s.pauld[0].visible=vp;s.pauld[1].visible=vp;if(vp){s.pauld[0].position.set(P[SHL*3],P[SHL*3+1]+.03,P[SHL*3+2]);s.pauld[1].position.set(P[SHR*3],P[SHR*3+1]+.03,P[SHR*3+2]);}}
   if(s.plume){s.plume.visible=!s.headGone&&!s.pov&&!s._far;if(s.plume.visible){s.plume.position.set(P[HEAD*3]+v1.x*.24,P[HEAD*3+1]+v1.y*.24,P[HEAD*3+2]+v1.z*.24);s.plume.quaternion.copy(s.helm.quaternion);}}
+  if(s.mark){const mv=!!s.need&&!s.hidden&&!s._far&&!s.pov;s.mark.visible=mv;if(mv){s.mark.position.set(P[HEAD*3],P[HEAD*3+1]+.55+Math.sin(TIME*3+s.id)*.06,P[HEAD*3+2]);s.mark.rotation.y=TIME*2;}}
   if(s.hair){const h=s.hair;h.visible=!s.headGone&&!s.pov&&!s._far;if(h.visible){const bx=-Math.sin(s.yaw),bz=-Math.cos(s.yaw);h.position.set(P[HEAD*3]+bx*.13,P[HEAD*3+1]-.12,P[HEAD*3+2]+bz*.13);h.quaternion.setFromUnitVectors(UP,v1.set(-bx*.35,1,-bz*.35).normalize());}}
   const wm=s.wMesh;wm.visible=!s.noWeapon;wm.position.set(P[HAR*3],P[HAR*3+1],P[HAR*3+2]);
   if(s.dead){v2.set(P[HAR*3]-P[ELR*3],P[HAR*3+1]-P[ELR*3+1],P[HAR*3+2]-P[ELR*3+2]).normalize();wm.quaternion.setFromUnitVectors(UP,v2);}
@@ -984,7 +1022,7 @@ function addCaption(e,text,last){
 }
 function say(e,text,o){
   o=o||{};if(!e||(e.dead&&!o.last))return;if(!o.force&&TIME-(e.lastSpeak||-9)<(o.cool||3.5))return;e.lastSpeak=TIME;
-  if(pov&&(o.always||e===pov||Math.hypot(e.x-pov.x,e.z-pov.z)<14))addCaption(e,text,!!o.last);
+  if((pov&&(o.always||e===pov||Math.hypot(e.x-pov.x,e.z-pov.z)<14))||(VILL&&!pov&&player&&(o.always||Math.hypot(e.x-player.x,e.z-player.z)<10)))addCaption(e,text,!!o.last);
   const v=vol(e);if((v<.06&&e!==pov)||S.voice==='off'||muted)return;
   if(S.voice==='full'&&speechOK()){if(S.scope==='pov'&&pov&&e!==pov&&!e.isPlayer)return;const prio=!!(o.always||o.last||e===pov||e.isPlayer);if(!prio&&v<.3)return;if(speakReal(e,text,!!o.last,prio,e===pov?1:v))return;}
   babble(e,text,v,!!o.last);
@@ -1194,7 +1232,7 @@ function mutilate(c,w,dx,dz,byPlayer){
 /* -------------------------------------------------------------- combat */
 let kills=0,wave=1,rallyCd=0;
 function hitUnit(e,dmg,dx,dz,kb,w,o){
-  if(e.dead)return;if(GOD&&e.isPlayer)return;o=o||{};if(e.dying){const dy=e.dying;e.dying=null;e.hp=-1;e.kvx+=dx*kb;e.kvz+=dz*kb;killUnit(e,dmg,dx,dz,kb,w,Object.assign({},o,{said:dy.said}));return;}if(e.armorRed){dmg*=1-e.armorRed;if(e.armorRed>=.4&&!o.expl)sfx('clang',vol(e)*.5);}
+  if(e.dead||e.hidden)return;if(GOD&&e.isPlayer)return;o=o||{};if(e.dying){const dy=e.dying;e.dying=null;e.hp=-1;e.kvx+=dx*kb;e.kvz+=dz*kb;killUnit(e,dmg,dx,dz,kb,w,Object.assign({},o,{said:dy.said}));return;}if(e.armorRed){dmg*=1-e.armorRed;if(e.armorRed>=.4&&!o.expl)sfx('clang',vol(e)*.5);}
   if(e.isPlayer){dmg*=.8;if(e.block){dmg*=.25;kb*=.4;sfx('clang');}}
   e.hp-=dmg;e.lastHit=TIME;e.kvx+=dx*kb;e.kvz+=dz*kb;if(e.hp>0)hitVoice(e);
   if(!e.isPlayer){e.stun=Math.max(e.stun,.16+kb*.012);e.atkT=-1;}
@@ -1206,7 +1244,7 @@ function hitUnit(e,dmg,dx,dz,kb,w,o){
 }
 function killUnit(e,dmg,dx,dz,kb,w,o){
   e.dead=true;e._far=false;e.deadT=0;e.asleep=false;e.hideBody=false;const i=units.indexOf(e);if(i>=0)units.splice(i,1);corpses.push(e);
-  if(e.team===1)kills++;
+  if(e.team===1)kills++;if(VILL){if(e.civ){vProsper=Math.max(0,vProsper-15);banner('A villager has fallen!',1500);}else if(e.team===1)vCoins+=5;}
   if(e.horse){bloodBurst(e.x,e.y+1,e.z,dx,dz,S.gore>=1?36:10);sfx('neigh',vol(e));if(S.gore>=1)makePool(e.x,e.z,S.gore===2?2.6:1.6);}
   const f=(kb*.55+3.5)*(o.expl?1.4:1);
   for(let k=0;k<15;k++){const q=k*3,m=rnd(.7,1.2);e.Q[q]=e.P[q]-(dx*f*m+e.vx*.8+rnd(-.8,.8))/60;e.Q[q+1]=e.P[q+1]-(rnd(2.5,5)*(o.expl?2:1))/60;e.Q[q+2]=e.P[q+2]-(dz*f*m+e.vz*.8+rnd(-.8,.8))/60;}
@@ -1217,7 +1255,7 @@ function killUnit(e,dmg,dx,dz,kb,w,o){
 }
 function rayHit(ox,oy,oz,dx,dy,dz,maxT,team){
   let best=null,bt=maxT,head=false;
-  for(const e of units){if(e.team===team||e.dead)continue;const P=e.P;
+  for(const e of units){if(e.team===team||e.dead||e.hidden)continue;const P=e.P;
     for(let k=0;k<3;k++){const pt=k===0?HEAD:k===1?CHEST:PELV,r=k===0?.24:k===1?.42:.34,o=pt*3;
       const cx=P[o]-ox,cy=P[o+1]-oy,cz=P[o+2]-oz;let t=cx*dx+cy*dy+cz*dz;t=clamp(t,0,maxT);
       const px=ox+dx*t-P[o],py=oy+dy*t-P[o+1],pz=oz+dz*t-P[o+2];
@@ -1268,7 +1306,7 @@ function explode(x,y,z,R,dmg,byPlayer){
 let prep=999,cmd='charge';
 function findTarget(s){
   let best=null,bd=1e9;const lim=s.team===1?1e9:(cmd==='charge'?1e9:cmd==='hold'?12:14);
-  for(const e of units){if(e.team===s.team||e.dying||(GOD&&e.isPlayer))continue;const d=Math.hypot(e.x-s.x,e.z-s.z)*(e.isPlayer?.7:1);if(d<bd){bd=d;best=e;}}
+  for(const e of units){if(e.team===s.team||e.dying||(GOD&&e.isPlayer)||e.hidden)continue;const d=Math.hypot(e.x-s.x,e.z-s.z)*(e.isPlayer?.7:e.civ?.6:1);if(d<bd){bd=d;best=e;}}
   return best&&bd>lim?null:best;
 }
 function aiHit(s){
@@ -1327,7 +1365,7 @@ addEventListener('keydown',e=>{
     case'KeyG':S.gore=(S.gore+1)%3;saveS();syncUI();banner('Gore: '+GORE_NAMES[S.gore],1100);break;
     case'KeyM':muted=!muted;banner(muted?'Sound off':'Sound on',900);break;
     case'KeyZ':setCmd('charge');break;case'KeyX':setCmd('hold');break;case'KeyC':setCmd('follow');break;
-    case'KeyF':rally();break;case'KeyP':pauseGame();break;case'KeyY':togglePov();break;case'KeyR':toggleMount();break;case'KeyT':if(GOD)godTimeCycle();break;case'KeyN':if(GOD)godPeaceToggle();break;case'KeyK':S.scope=S.scope==='near'?'pov':'near';saveS();syncUI();banner(S.scope==='pov'?'Hearing: the soldier you watch':'Hearing: soldiers near you',1200);break;case'KeyJ':S.voice=S.voice==='full'?'synth':S.voice==='synth'?'off':'full';saveS();syncUI();banner('Voices: '+({full:'Real voices',synth:'Synth only',off:'Silent'})[S.voice],1100);if(S.voice!=='full'){try{window.speechSynthesis&&window.speechSynthesis.cancel();}catch(_){}}break;case'KeyQ':if(pov)cyclePov(-1);break;case'KeyE':if(pov)cyclePov(1);break;case'KeyH':S.gfx=S.gfx==='std'?'high':S.gfx==='high'?'ultra':'std';saveS();syncUI();banner('Graphics: '+GFX_NAMES[S.gfx],1100);break;
+    case'KeyF':rally();break;case'KeyP':pauseGame();break;case'KeyY':togglePov();break;case'KeyR':toggleMount();break;case'KeyT':if(GOD)godTimeCycle();break;case'KeyN':if(GOD)godPeaceToggle();break;case'KeyK':S.scope=S.scope==='near'?'pov':'near';saveS();syncUI();banner(S.scope==='pov'?'Hearing: the soldier you watch':'Hearing: soldiers near you',1200);break;case'KeyJ':S.voice=S.voice==='full'?'synth':S.voice==='synth'?'off':'full';saveS();syncUI();banner('Voices: '+({full:'Real voices',synth:'Synth only',off:'Silent'})[S.voice],1100);if(S.voice!=='full'){try{window.speechSynthesis&&window.speechSynthesis.cancel();}catch(_){}}break;case'KeyQ':if(pov)cyclePov(-1);break;case'KeyE':if(pov)cyclePov(1);else if(VILL)interact();break;case'KeyH':S.gfx=S.gfx==='std'?'high':S.gfx==='high'?'ultra':'std';saveS();syncUI();banner('Graphics: '+GFX_NAMES[S.gfx],1100);break;
   }
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -1427,7 +1465,7 @@ function updatePlayer(dt){
   hold('bAtk',()=>{if(state==='play'){mouse.l=true;onPress();}},()=>{mouse.l=false;});
   hold('bBlk',()=>{mouse.r=true;},()=>{mouse.r=false;});
   hold('bJmp',()=>{keys.Space=true;},()=>{keys.Space=false;});
-  tap('bRal',rally);tap('bPrev',()=>pov?cyclePov(-1):GOD?setTool(godTool-1):setWeapon((player.wi+WEAPONS.length-1)%WEAPONS.length));tap('bNext',()=>pov?cyclePov(1):GOD?setTool(godTool+1):setWeapon((player.wi+1)%WEAPONS.length));tap('bHorse',toggleMount);tap('bTime',godTimeCycle);tap('bPeace',godPeaceToggle);tap('bPov',togglePov);
+  tap('bRal',rally);tap('bPrev',()=>pov?cyclePov(-1):GOD?setTool(godTool-1):setWeapon((player.wi+WEAPONS.length-1)%WEAPONS.length));tap('bNext',()=>pov?cyclePov(1):GOD?setTool(godTool+1):setWeapon((player.wi+1)%WEAPONS.length));tap('bHorse',toggleMount);tap('bTime',godTimeCycle);tap('bPeace',godPeaceToggle);tap('bAct',interact);tap('bPov',togglePov);
   tap('bCam',()=>{S.cam=S.cam==='tp'?'fp':'tp';saveS();syncUI();});
   tap('bGoreT',()=>{S.gore=(S.gore+1)%3;saveS();syncUI();banner('Gore: '+GORE_NAMES[S.gore],1100);});
   tap('bPause',()=>pauseGame());
@@ -1576,6 +1614,127 @@ function godFrame(dt){
   if(mouse.l&&godCd<=0){if(useTool(godTool))godCd=tl.cd;else godCd=.15;}
 }
 
+/* ------------------------------------------------------------- village mode */
+let VILL=false,vDay=1,vDayT=0,vCoins=0,vProsper=0,vCarry=null,vRaid=false,vWarned=false,vTotal=0,vIdx=0,nightK=0;
+const VC={x:84,z:28},V_DAYS=7,RAID_AT=75;
+const matCiv=[M(0x8a6a44),M(0x6b7a4a),M(0xa05a3a),M(0x7a6a8a),M(0xc9b88a),M(0x9a8a6a)],markGeo=new THREE.OctahedronGeometry(.13,0);
+const MARKC={water:0x4aa8ff,wood:0xa0642a,bread:0xe8c46a,heal:0x66ff99};
+const NEEDLINE={water:'Could you fetch water from the well? My jugs are empty.',wood:'We are nearly out of firewood. Could you bring some from the woodpile?',bread:'The children are hungry. Could you fetch bread from the stall?',heal:'My leg hurts something awful. Could you help me?'};
+const QNAME={water:'fetch water',wood:'bring firewood',bread:'bring bread',heal:'help'};
+const THANKS=['Thank you, Warlord! You are a blessing.','May the gods bless you!','I will tell everyone of your kindness.','You have my thanks, Warlord.'];
+const CHAT=['Good day, Warlord!','The village sleeps easier with you here.','Raiders come at night. Keep the guards close.','You can hire more guards at the town board.','The old fort keeps watch over us.','Welcome, Warlord. How can I help?','The harvest was kind this year.'];
+const FLEE=['Raiders! Run!','Help! Help!','Get to cover!','They are here!','Save yourselves!'];
+const SKY_DAY=new THREE.Color(0x9db8c9),SKY_NIGHT=new THREE.Color(0x0c1226),FOG_DAY=new THREE.Color(0xb9c4c6),skyTex=scene.background;
+function updateNight(dt,target){
+  nightK+=(target-nightK)*Math.min(1,dt*.8);
+  if(nightK>.01){if(!(scene.background&&scene.background.isColor))scene.background=new THREE.Color();scene.background.copy(SKY_DAY).lerp(SKY_NIGHT,nightK);}
+  else if(scene.background&&scene.background.isColor)scene.background=skyTex;
+  scene.fog.color.copy(FOG_DAY).lerp(SKY_NIGHT,nightK*.9);
+  const hi=S.gfx!=='std';hemi.intensity=lerp(hi?.8:.95,.32,nightK);sun.intensity=lerp(hi?1.05:.85,.14,nightK);
+}
+function setNeed(u,n){u.need=n;if(u.mark&&n)u.mark.material.color.setHex(MARKC[n]);}
+function villSay(u,text){say(u,text,{force:true,always:true});}
+function nearestHouse(s){let b=null,bd=1e9;for(const h of HOUSES){const d=Math.hypot(h.x-s.x,h.z-s.z);if(d<bd){bd=d;b=h;}}return b||{x:VC.x,z:VC.z,sr:6};}
+function civUpdate(s,dt){
+  if(s.hidden){
+    s.vx=0;s.vz=0;s.hideT-=dt;
+    if(s.hideT<=0){let near=false;for(const u of units)if(u.team===1&&Math.hypot(u.x-s.x,u.z-s.z)<45){near=true;break;}
+      if(near)s.hideT=2;else{s.hidden=false;s.hideBody=false;s.dirty=true;}}
+    return;
+  }
+  let th=null,bd=30;for(const u of units){if(u.team!==1)continue;const d=Math.hypot(u.x-s.x,u.z-s.z);if(d<bd){bd=d;th=u;}}
+  let dvx=0,dvz=0;
+  if(th){
+    const h=nearestHouse(s),dx=h.x-s.x,dz=h.z-s.z,d=Math.hypot(dx,dz);
+    if(d<h.sr){s.hidden=true;s.hideBody=true;s.hideT=3;s.atkT=-1;s.vx=0;s.vz=0;return;}
+    dvx=dx/d*4.4;dvz=dz/d*4.4;s.yaw+=angDiff(s.yaw,Math.atan2(dx,dz))*Math.min(1,dt*8);s.atkT=-1;
+    if(Math.random()<dt*.35)say(s,pick(FLEE),{cool:5});
+  }else{
+    const pd=player&&!player.dead?Math.hypot(player.x-s.x,player.z-s.z):99;
+    if(pd<3.2){s.yaw+=angDiff(s.yaw,Math.atan2(player.x-s.x,player.z-s.z))*Math.min(1,dt*6);}
+    else{
+      if(!s.wp||s.wp.t<=0||Math.hypot(s.wp.x-s.x,s.wp.z-s.z)<.8){const a=rnd(0,6.28),r=rnd(1,9);s.wp={x:s.home.x+Math.cos(a)*r,z:s.home.z+Math.sin(a)*r,t:rnd(4,9)};}
+      s.wp.t-=dt;const dx=s.wp.x-s.x,dz=s.wp.z-s.z,d=Math.hypot(dx,dz);
+      if(d>.8&&s.atkT<0){dvx=dx/d*1.3;dvz=dz/d*1.3;s.yaw+=angDiff(s.yaw,Math.atan2(dx,dz))*Math.min(1,dt*4);}
+    }
+    if(s.atkT>=0){s.atkT+=dt/s.atkDur;if(s.atkT>=1)s.atkT=-1;}
+    else{s.workT-=dt;if(s.workT<=0){s.atkT=0;s.atkDur=1.3;s.workT=rnd(6,12);}}
+    if(!s.need&&!vRaid){s.needT-=dt;if(s.needT<=0){let n=0;for(const u of units)if(u.civ&&u.need)n++;if(n<3)setNeed(s,pick(['water','wood','bread','heal']));s.needT=rnd(25,45);}}
+  }
+  const k=1-Math.exp(-8*dt);s.vx+=(dvx-s.vx)*k;s.vz+=(dvz-s.vz)*k;
+}
+const JOBS=['Farmer','Baker','Blacksmith','Shepherd','Woodcutter','Weaver','Miller','Priest','Fisher','Potter'],TOOLW={Farmer:3,Woodcutter:1,Blacksmith:2,Shepherd:3,Baker:5,Weaver:5,Miller:1,Priest:5,Fisher:3,Potter:5};
+function makeVillager(i){
+  const homes=HOUSES.filter(h=>Math.hypot(h.x-VC.x,h.z-VC.z)<30),h=homes.length?homes[i%homes.length]:{x:VC.x,z:VC.z,sr:6},a=rnd(0,6.28),r=h.sr+rnd(.5,2),job=JOBS[i%JOBS.length];
+  const u=makeUnit(0,h.x+Math.cos(a)*r,h.z+Math.sin(a)*r,TOOLW[job],{hp:45,f:i%2===0,civ:true});u.job=job;u.home=h;return u;
+}
+function makeGuard(x,z){const g=makeUnit(0,x,z,pick([0,3,5,0,1]),{hp:100,f:(godGi++)%2===0,armor:Math.random()<.5?'plate':'mail'});g.guard=true;return g;}
+function ensureGuards(n){let c=0;for(const u of units)if(u.guard)c++;for(;c<n;c++){const a=rnd(0,6.28);makeGuard(VC.x+Math.cos(a)*12,VC.z+Math.sin(a)*12);}}
+function spawnVillage(){
+  vIdx=0;for(let i=0;i<14;i++)makeVillager(vIdx++);vTotal=14;
+  for(let i=0;i<6;i++){const a=i/6*6.283;makeGuard(VC.x+Math.cos(a)*11,VC.z+Math.sin(a)*11);}
+  const wi=player?player.wi:0;player=makeUnit(0,VC.x,VC.z+9,wi,{player:true,hp:200,f:S.pg==='f',armor:'mail'});player.cdw=0;
+}
+function hireGuard(){
+  if(vCoins<30){banner('Not enough coins. A guard costs 30.',1600);return;}
+  vCoins-=30;const g=makeGuard(player.x+rnd(-3,3),player.z+rnd(-3,3));fxSphere(g.x,g.y+.5,g.z,2,0x5aa0ff,.5,true);sfx('horn',.4);banner('A new guard joins you: '+g.name,1800);
+}
+function nearestInteract(){
+  if(!player)return null;let best=null,bd=1e9;
+  for(const u of units){if(!u.civ||u.hidden||u.dying)continue;const d=Math.hypot(u.x-player.x,u.z-player.z);if(d<2.8&&d<bd){bd=d;best={kind:'civ',u};}}
+  for(const o of INTERACT){const d=Math.hypot(o.x-player.x,o.z-player.z);if(d<o.r&&d<bd){bd=d;best={kind:'obj',o};}}
+  return best;
+}
+function interact(){
+  if(!VILL||!player||player.dead||pov)return;const t=nearestInteract();if(!t)return;
+  if(t.kind==='obj'){
+    const o=t.o;
+    if(o.type==='well'){vCarry='water';player.hp=Math.min(player.maxhp,player.hp+25);banner('You draw water from the well',1300);}
+    else if(o.type==='wood'){vCarry='wood';banner('You pick up firewood',1300);}
+    else if(o.type==='stall'){vCarry='bread';banner('You take a loaf of bread',1300);}
+    else hireGuard();
+    return;
+  }
+  const u=t.u;
+  if(vCarry&&u.need===vCarry){vCoins+=15;vProsper+=10;setNeed(u,null);vCarry=null;villSay(u,pick(THANKS));banner('+15 coins',1300);return;}
+  if(u.need==='heal'){vCoins+=10;vProsper+=8;u.hp=u.maxhp;setNeed(u,null);villSay(u,pick(THANKS));banner('+10 coins',1300);return;}
+  if(u.need){villSay(u,NEEDLINE[u.need]);banner('Quest: '+QNAME[u.need]+' for '+u.name,1700);return;}
+  villSay(u,pick(CHAT));
+}
+function spawnRaid(){
+  vRaid=true;vWarned=false;
+  const origins=[[20,-125,'north'],[-70,-118,'north-west'],[125,-95,'north-east'],[130,60,'east']],o=pick(origins),n=5+vDay*3;let i=0,fi=0;
+  while(i<n){const k=Math.min(n-i,rndi(3,6)),cx=o[0]+rnd(-14,14),cz=o[1]+rnd(-10,10);
+    for(let j=0;j<k;j++,i++){const lo=loadout(i,58+vDay*5),mt=lo.mount&&vDay>=3;
+      makeUnit(1,clamp(cx+rnd(-5,5),-132,132),clamp(cz+rnd(-5,5),-138,138),lo.mount&&!mt?0:lo.wi,{hp:lo.hp,f:(fi++)%2===0,armor:lo.armor,mount:mt});}}
+  banner('Raiders approach from the '+o[2]+'!',3200);sfx('horn');
+}
+function villUpdate(dt){
+  if(state!=='play')return;
+  vDayT+=dt;let en=0,civs=0;for(const u of units){if(u.team===1)en++;else if(u.civ)civs++;}
+  if(!vRaid&&vDayT>=RAID_AT-12&&!vWarned){vWarned=true;banner('Smoke on the horizon. Raiders are coming.',2600);sfx('horn',.4);}
+  if(!vRaid&&vDayT>=RAID_AT)spawnRaid();
+  else if(vRaid&&en===0){
+    vRaid=false;vDay++;vDayT=0;vWarned=false;const bonus=20+vDay*5;vCoins+=bonus;vProsper+=25;
+    for(const u of units)if(u.team===0&&!u.isPlayer)u.hp=Math.min(u.maxhp,u.hp+30);
+    ensureGuards(4);if(civs<16&&vProsper>=30)makeVillager(vIdx++);
+    if(vDay>V_DAYS){showMenu('victory');$('mTitle').textContent='The kingdom is saved';$('mSub').textContent='You survived '+V_DAYS+' nights of raids with '+civs+' villagers and '+vCoins+' coins. Prosperity: '+vProsper+'.';$('mGo').textContent='Defend again';return;}
+    banner('Raid repelled! +'+bonus+' coins. Day '+vDay,2800);
+  }
+  updateNight(dt,(vRaid||vDayT>=RAID_AT-12)?1:0);
+  if(civs===0&&vTotal>0&&state==='play'){showMenu('defeat');$('mTitle').textContent='The village has fallen';$('mSub').textContent='Every villager is gone. You lasted until day '+vDay+'.';$('mGo').textContent='Defend again';}
+}
+function updateVillHud(){
+  let civs=0,guards=0,raiders=0;for(const u of units){if(u.civ)civs++;else if(u.team===1)raiders++;else if(u.guard)guards++;}
+  const st=vRaid?'Raid in progress':(vDayT>=RAID_AT-12?'Raiders approaching':'Peaceful'),needs=[];
+  for(const u of units)if(u.civ&&u.need)needs.push(u.name+' needs: '+QNAME[u.need]);
+  $('villHud').innerHTML='Day <b>'+Math.min(vDay,V_DAYS)+'</b> of '+V_DAYS+' &nbsp; <i>'+st+'</i><br>Villagers <b>'+civs+'</b> &nbsp; Guards <b>'+guards+'</b>'+(vRaid?' &nbsp; Raiders <b>'+raiders+'</b>':'')+'<br>Coins <b>'+vCoins+'</b> &nbsp; Prosperity <b>'+vProsper+'</b>'+(vCarry?'<br>Carrying: <b>'+vCarry+'</b>':'')+(needs.length?'<br><small>'+needs.slice(0,3).join('<br>')+'</small>':'');
+  const t=nearestInteract(),pr=$('prompt'),key=S.ctl==='touch'?'Act':'E';
+  if(t&&!pov&&state==='play'){pr.hidden=false;
+    pr.textContent=t.kind==='obj'?'['+key+'] '+t.o.label:(vCarry&&t.u.need===vCarry)?'['+key+'] Give '+vCarry+' to '+t.u.name:t.u.need==='heal'?'['+key+'] Help '+t.u.name:'['+key+'] Talk to '+t.u.name+', '+t.u.job;}
+  else pr.hidden=true;
+}
+
 const vm=new THREE.Group();camera.add(vm);let vmW=null;
 const vmArm=new THREE.Mesh(new THREE.CylinderGeometry(.045,.05,.55,6),matSteel);vmArm.position.set(0,-.12,.28);vmArm.rotation.x=1.98;
 const vmHand=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),matSkin);
@@ -1612,6 +1771,7 @@ function spawnSide(team,n,hp,z0,z1){
     for(let j=0;j<k;j++,i++){const lo=loadout(i,hp);makeUnit(team,clamp(cx+rnd(-6,6),-125,125),clamp(sg*(cz+rnd(-6,6)),-132,132),lo.wi,{hp:lo.hp,f:(fi++)%2===0,armor:lo.armor,mount:lo.mount});}}
 }
 function spawnArmies(){
+  if(VILL){spawnVillage();return;}
   const n=S.army,ne=Math.min(220,Math.round(n*(1+(wave-1)*.25)));
   spawnSide(0,n,75,44,92);spawnSide(1,ne,60+wave*4,44,92);
   const wi=player?player.wi:0;
@@ -1630,12 +1790,14 @@ function clearAll(){
   PA.forEach(p=>p.a=false);SA.forEach(p=>p.a=false);for(const p of props)scene.remove(p.g);props.length=0;dropW.length=0;for(const b of bolts)for(const m of b.ms)scene.remove(m);bolts.length=0;for(const m of meteors)scene.remove(m.m);meteors.length=0;for(const r of ropes)for(const m of r.ms)scene.remove(m);ropes.length=0;for(let i=0;i<ND;i++)decalIM.setMatrixAt(i,ZERO);decalIM.instanceMatrix.needsUpdate=true;dI=0;bloodEl.innerHTML='';
 }
 function startBattle(){
-  GOD=S.mode==='god';if(!GOD&&S.army<15){S.army=15;saveS();}clearAll();const keep=player?player.wi:0;player=null;spawnArmies();if(keep!==player.wi)swapWeapon(player,keep);
+  GOD=S.mode==='god';VILL=S.mode==='village';if(!GOD&&!VILL&&S.army<15){S.army=15;saveS();}clearAll();const keep=player?player.wi:0;player=null;spawnArmies();if(keep!==player.wi)swapWeapon(player,keep);
   if(pov)setPov(null);victSaid=false;reinfLeft=S.reinf==='on'?3+Math.min(3,wave-1):0;reinfT=50;camYaw=0;camPitch=0;state='play';prep=3.2;
   if(GOD){reinfLeft=0;prep=.5;godPeace=true;godTime=1;godTimeI=0;godTool=0;godCd=0;player.ghost=true;player.hideBody=true;godCam.x=0;godCam.z=70;godCam.y=G(0,70)+28;camPitch=-.45;}
-  document.body.classList.toggle('god',GOD);buildHotbar();cmd='charge';rallyCd=0;defeatT=0;victoryT=0;slowT=0;timeScale=1;
+  if(VILL){reinfLeft=0;prep=.3;vDay=1;vDayT=0;vCoins=20;vProsper=0;vCarry=null;vRaid=false;vWarned=false;}
+  nightK=0;updateNight(0,0);if(!VILL)$('prompt').hidden=true;
+  document.body.classList.toggle('god',GOD);document.body.classList.toggle('vill',VILL);buildHotbar();cmd=VILL?'hold':'charge';rallyCd=0;defeatT=0;victoryT=0;slowT=0;timeScale=1;
   $('menu').hidden=true;$('hud').hidden=false;buildVM();syncUI();
-  banner(GOD?'God mode. Press N to start the war.':'Form up, Warlord',GOD?2600:1700);setTimeout(()=>{if(state==='play'&&!GOD){banner('Charge!',1300);sfx('horn');chorus('charge');}},3000);
+  banner(GOD?'God mode. Press N to start the war.':VILL?'Protect the village, Warlord':'Form up, Warlord',GOD?2600:1900);setTimeout(()=>{if(state==='play'&&!GOD&&!VILL){banner('Charge!',1300);sfx('horn');chorus('charge');}},3000);
 }
 function newGame(){wave=1;kills=0;player=null;startBattle();}
 function nextWave(){wave++;startBattle();}
@@ -1695,7 +1857,7 @@ function drawRadar(){
   rctx.strokeStyle='rgba(244,237,220,.25)';rctx.lineWidth=1;rctx.beginPath();rctx.arc(R,R,(R-8)/2,0,6.283);rctx.stroke();
   for(const u of units){if(u===L)continue;const dx=u.x-L.x,dz=u.z-L.z;let sx=dx*cs-dz*sn,sy=dx*sn+dz*cs;const d=Math.hypot(sx,sy),edge=d>range;
     if(edge){sx=sx/d*range;sy=sy/d*range;}
-    rctx.globalAlpha=edge?.55:1;rctx.fillStyle=u.isPlayer?'#f2c75c':u.team===0?'#5aa0ff':'#ff5a4a';rctx.fillRect(R+sx*k-1.5,R+sy*k-1.5,3,3);}
+    rctx.globalAlpha=edge?.55:1;rctx.fillStyle=u.isPlayer?'#f2c75c':u.civ?'#7ddc7d':u.team===0?'#5aa0ff':'#ff5a4a';rctx.fillRect(R+sx*k-1.5,R+sy*k-1.5,3,3);}
   rctx.globalAlpha=1;rctx.fillStyle='#fff';rctx.beginPath();rctx.moveTo(R,R-6);rctx.lineTo(R-4,R+4);rctx.lineTo(R+4,R+4);rctx.closePath();rctx.fill();
   if(pov&&player&&!player.dead){const dx=player.x-L.x,dz=player.z-L.z,sx=dx*cs-dz*sn,sy=dx*sn+dz*cs;if(Math.hypot(sx,sy)<range){rctx.fillStyle='#f2c75c';rctx.fillRect(R+sx*k-2.5,R+sy*k-2.5,5,5);}}
   rctx.restore();
@@ -1706,10 +1868,10 @@ function update(dt){
   TIME+=dt;for(const a of ANIM)a.rotation.z+=dt*.5;
   if(prep>0&&state==='play'){prep-=dt;}
   for(const u of units){if(u.sayQ&&TIME>=u.sayQ.t){const q=u.sayQ;u.sayQ=null;say(u,q.text,q.o||{});}}
-  for(const u of units.slice()){if(u.isPlayer)continue;if(u.dying){updateDying(u,dt);bleedTick(u,dt);continue;}aiUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);}
+  for(const u of units.slice()){if(u.isPlayer)continue;if(u.dying){updateDying(u,dt);bleedTick(u,dt);continue;}if(u.civ){civUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);continue;}aiUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);}
   if(player&&!player.dead){if(state==='play'){updatePlayer(dt);}else{player.vx*=.9;player.vz*=.9;}integrate(player,dt);poseAlive(player);}
   // separation
-  for(let i=0;i<units.length;i++){const a=units[i];if(a.ghost)continue;for(let j=i+1;j<units.length;j++){const b=units[j];if(b.ghost)continue;const dx=b.x-a.x,th=(a.mount||b.mount)?1.3:.8;if(dx>th||dx<-th)continue;const dz=b.z-a.z,d2=dx*dx+dz*dz;
+  for(let i=0;i<units.length;i++){const a=units[i];if(a.ghost||a.hidden)continue;for(let j=i+1;j<units.length;j++){const b=units[j];if(b.ghost||b.hidden)continue;const dx=b.x-a.x,th=(a.mount||b.mount)?1.3:.8;if(dx>th||dx<-th)continue;const dz=b.z-a.z,d2=dx*dx+dz*dz;
     if(d2<th*th&&d2>1e-6){const d=Math.sqrt(d2),o=(th-d)*.5,nx=dx/d,nz=dz/d;
       if(a.isPlayer){b.x+=nx*o*2;b.z+=nz*o*2;}else if(b.isPlayer){a.x-=nx*o*2;a.z-=nz*o*2;}else{a.x-=nx*o;a.z-=nz*o;b.x+=nx*o;b.z+=nz*o;}}}}
   // corpses
@@ -1717,11 +1879,11 @@ function update(dt){
     if(!e.gibbed){bleedTick(e,dt);
       if(!e.asleep){const mv=ragStep(e,Math.min(dt,.033));if(mv<.02){if(++e.sleepN>40)e.asleep=true;}else e.sleepN=0;e.dirty=true;}
       if(!e.pool&&e.deadT>.8){e.pool=true;makePool(e.P[PELV*3],e.P[PELV*3+2],[.55,1.2,2][S.gore]*rnd(.8,1.2));}}}
-  updateProps(dt);updateRopes(dt);updateDropW(dt);updateGodFx(dt);updateArrows(dt);updateBombs(dt);updateParticles(dt);updateFx(dt);
+  updateProps(dt);updateRopes(dt);updateDropW(dt);updateGodFx(dt);if(VILL)villUpdate(dt);updateArrows(dt);updateBombs(dt);updateParticles(dt);updateFx(dt);
   // end conditions
   if(state==='play'){
     if(defeatT>0){defeatT-=dt;if(defeatT<=0)showMenu('defeat');}
-    else if(prep<=0&&!GOD){let en=0;for(const u of units)if(u.team===1)en++;if(reinfLeft>0){reinfT-=dt;if(reinfT<=0||(en<=2&&reinfT<40)){spawnReinf();en=1;}else if(en===0)en=1;}
+    else if(prep<=0&&!GOD&&!VILL){let en=0;for(const u of units)if(u.team===1)en++;if(reinfLeft>0){reinfT-=dt;if(reinfT<=0||(en<=2&&reinfT<40)){spawnReinf();en=1;}else if(en===0)en=1;}
       if(en===0){if(!victSaid){victSaid=true;chorus('victory');}victoryT+=dt;if(victoryT>1.6){banner('Victory',2000);showMenu('victory');}}}
   }
   if(slowT>0)slowT-=dt/Math.max(.2,timeScale);timeScale+=((slowT>0?.28:1)-timeScale)*Math.min(1,dt*9);
@@ -1753,7 +1915,7 @@ function updateCamera(dt,realDt){
 function updateHUD(){
   let a=0,e=0;for(const u of units){if(u.team===0&&!u.isPlayer)a++;else if(u.team===1)e++;}
   $('cAlly').textContent=a;$('cEnemy').textContent=e;$('cKills').textContent=kills;$('cWave').textContent=wave;$('cReinf').textContent=reinfLeft;drawRadar();
-  $('godTag').hidden=!GOD;if(GOD)$('godTag').textContent='God mode: '+TOOLS[godTool].n+' ('+TOOLS[godTool].d+') | '+['Time normal','Slow motion','Time frozen','Fast time'][godTimeI]+(godPeace?' | Ceasefire (N starts war)':' | War (N for peace)');
+  if(VILL)updateVillHud();$('godTag').hidden=!GOD;if(GOD)$('godTag').textContent='God mode: '+TOOLS[godTool].n+' ('+TOOLS[godTool].d+') | '+['Time normal','Slow motion','Time frozen','Fast time'][godTimeI]+(godPeace?' | Ceasefire (N starts war)':' | War (N for peace)');
   const hp=Math.max(0,Math.round(player.hp));if(hp!==lastHp){lastHp=hp;$('hptxt').textContent=hp;$('hpfill').style.width=(hp/player.maxhp*100)+'%';}
   $('rally').textContent=rallyCd>0?'Rally cry ready in '+Math.ceil(rallyCd)+'s':'Rally cry ready (F)';
   $('cross').style.opacity=S.cam==='fp'||player.w.t!=='melee'?1:.55;
