@@ -131,6 +131,19 @@ body.touch #prompt{bottom:84px;font-size:17px}
 .villonly{display:none}
 body.vill .villonly{display:flex}
 #bAct{right:36px;bottom:230px;width:74px;height:74px;font-size:19px}
+#mpPanel{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(10,10,16,.78)}
+#mpPanel[hidden]{display:none}
+#mpPanel label{display:block;font-weight:700;font-size:15px;margin:8px 0 2px}
+#mpPanel input[type=text]{width:100%;box-sizing:border-box;padding:9px 10px;font:inherit;font-size:17px;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:4px}
+#mpPanel button.mpb{font:inherit;font-weight:700;font-size:17px;padding:10px 16px;margin:8px 8px 0 0;color:var(--btn-text);background:var(--btn-bg);border:0;border-radius:4px;cursor:pointer}
+#mpPanel button.mpb.alt{color:var(--text);background:transparent;border:1px solid var(--line)}
+#mpPanel .mprow{display:flex;gap:8px;align-items:center;margin-top:8px}
+#mpPanel #mpCode{width:110px;text-transform:uppercase;letter-spacing:3px;text-align:center}
+#mpRoster div{padding:4px 0;border-bottom:1px solid var(--line)}
+#mpBoardList div{padding:2px 0;font-size:15px}
+#mpBoard{position:absolute;right:16px;top:120px;min-width:170px;padding:6px 10px;background:rgba(10,10,14,.55);border:1px solid rgba(244,237,220,.4);border-radius:4px;font-size:15px;line-height:1.35}
+#mpBoard[hidden]{display:none}
+body.touch #mpBoard{top:auto;bottom:8px;right:50%;transform:translateX(50%);font-size:13px;opacity:.85}
 @media (prefers-reduced-motion: reduce){.cap{animation:none}}
 @media (prefers-reduced-motion: reduce){#banner,#hpfill{transition:none}}
 </style>
@@ -158,6 +171,7 @@ body.vill .villonly{display:flex}
   <canvas id="radar" width="150" height="150"></canvas>
   <div id="godTag" hidden></div>
   <div id="villHud"></div>
+  <div id="mpBoard" hidden></div>
   <div id="prompt" hidden></div>
   <div id="flash"></div>
   <div id="povTag" hidden></div>
@@ -184,6 +198,7 @@ body.vill .villonly{display:flex}
     <h1 id="mTitle">Warlord</h1>
     <p class="sub" id="mSub">Lead your army into battle. Order your soldiers, then wade in yourself.</p>
     
+    <button class="seg-like" id="mOnline" style="display:block;width:100%;margin:0 0 14px;padding:12px;font:inherit;font-size:19px;font-weight:700;color:var(--text);background:transparent;border:2px solid var(--sel-bg);border-radius:4px;cursor:pointer">Online multiplayer</button>
     <fieldset><legend>Mode</legend>
       <div class="seg" id="segMode" role="group" aria-label="Mode">
         <button data-v="war"><b>Warlord</b><small>Lead your army and fight in the battle yourself.</small></button>
@@ -273,6 +288,34 @@ body.vill .villonly{display:flex}
   </div>
 </div>
 
+<div id="mpPanel" hidden>
+  <div class="panel" role="dialog" aria-labelledby="mpTitle">
+    <h1 id="mpTitle">Online</h1>
+    <p class="sub">Play with friends over the internet. This needs your own free Supabase project (see the README) and this page hosted on a normal website such as GitHub Pages.</p>
+    <div id="mpConnect">
+      <label for="mpUrl">Supabase project URL</label><input id="mpUrl" type="text" placeholder="https://abcd1234.supabase.co" autocomplete="off" spellcheck="false">
+      <label for="mpKey">Supabase anon (public) key</label><input id="mpKey" type="text" autocomplete="off" spellcheck="false">
+      <label for="mpName">Your name</label><input id="mpName" type="text" maxlength="16" placeholder="Warlord" autocomplete="off">
+      <label>Match type</label>
+      <div class="seg" id="segMpMode" role="group" aria-label="Match type">
+        <button data-v="coop" aria-pressed="true"><b>Co-op</b><small>Fight the AI waves together. The host runs the AI.</small></button>
+        <button data-v="ffa" aria-pressed="false"><b>Free for all</b><small>Players only. Last warlord standing scores.</small></button>
+      </div>
+      <div class="mprow"><button class="mpb" id="mpCreate">Create room</button></div>
+      <div class="mprow"><input id="mpCode" type="text" maxlength="5" placeholder="CODE" autocomplete="off"><button class="mpb" id="mpJoin">Join room</button></div>
+      <div class="mprow"><button class="mpb alt" id="mpBoardBtn">Leaderboard</button></div>
+      <div id="mpBoardList"></div>
+    </div>
+    <div id="mpLobby" hidden>
+      <h2 style="margin:0 0 6px">Room <b id="mpRoomCode"></b></h2>
+      <div id="mpRoster"></div>
+      <div class="mprow"><button class="mpb" id="mpStart">Start match</button><button class="mpb alt" id="mpLeaveBtn">Leave room</button></div>
+    </div>
+    <p id="mpStatus" class="note"></p>
+    <button class="mpb alt" id="mpClose">Back</button>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (()=>{
@@ -696,7 +739,7 @@ function makeUnit(team,x,z,wi,o){
   poseAlive(s);
   for(const c of CONS){const a=c[0]*3,b=c[1]*3;s.cons.push([c[0],c[1],Math.hypot(s.P[a]-s.P[b],s.P[a+1]-s.P[b+1],s.P[a+2]-s.P[b+2])]);}
   s.Q.set(s.P);
-  units.push(s);return s;
+  units.push(s);if(MP.inMatch&&MP.host&&MP.mode==='coop'&&!o.remote&&!o.player&&!o.puppet)mpQueueSpawn(s);return s;
 }
 function swapWeapon(s,wi){
   if(s.wMesh){scene.remove(s.wMesh);const i=s.meshes.indexOf(s.wMesh);if(i>=0)s.meshes.splice(i,1);}
@@ -1154,7 +1197,7 @@ function finishDying(s){
 }
 
 let slowT=0,timeScale=1,shake=0;
-function slowmo(t){slowT=Math.max(slowT,t);}
+function slowmo(t){if(MP.inMatch)return;slowT=Math.max(slowT,t);}
 function addCap(e,a,b,f,m2){
   const m=new THREE.Mesh(capGeo,matFlesh);scene.add(m);e.caps.push({m,a,b,f});
 }
@@ -1232,7 +1275,7 @@ function mutilate(c,w,dx,dz,byPlayer){
 /* -------------------------------------------------------------- combat */
 let kills=0,wave=1,rallyCd=0;
 function hitUnit(e,dmg,dx,dz,kb,w,o){
-  if(e.dead||e.hidden)return;if(GOD&&e.isPlayer)return;o=o||{};if(e.dying){const dy=e.dying;e.dying=null;e.hp=-1;e.kvx+=dx*kb;e.kvz+=dz*kb;killUnit(e,dmg,dx,dz,kb,w,Object.assign({},o,{said:dy.said}));return;}if(e.armorRed){dmg*=1-e.armorRed;if(e.armorRed>=.4&&!o.expl)sfx('clang',vol(e)*.5);}
+  if(e.dead||e.hidden)return;if(GOD&&e.isPlayer)return;o=o||{};if(MP.inMatch){if(e.puppet){mpHitPuppet(e,dmg,dx,dz,kb,w,o);return;}if(e.remote){mpHitRemote(e,dmg,dx,dz,kb,w,o);return;}}if(e.dying){const dy=e.dying;e.dying=null;e.hp=-1;e.kvx+=dx*kb;e.kvz+=dz*kb;killUnit(e,dmg,dx,dz,kb,w,Object.assign({},o,{said:dy.said}));return;}if(e.armorRed){dmg*=1-e.armorRed;if(e.armorRed>=.4&&!o.expl)sfx('clang',vol(e)*.5);}
   if(e.isPlayer){dmg*=.8;if(e.block){dmg*=.25;kb*=.4;sfx('clang');}}
   e.hp-=dmg;e.lastHit=TIME;e.kvx+=dx*kb;e.kvz+=dz*kb;if(e.hp>0)hitVoice(e);
   if(!e.isPlayer){e.stun=Math.max(e.stun,.16+kb*.012);e.atkT=-1;}
@@ -1243,15 +1286,16 @@ function hitUnit(e,dmg,dx,dz,kb,w,o){
   if(e.hp<=0){if(!tryDying(e,dmg,dx,dz,kb,w,o))killUnit(e,dmg,dx,dz,kb,w,o);}
 }
 function killUnit(e,dmg,dx,dz,kb,w,o){
+  if(MP.inMatch&&MP.host&&MP.mode==='coop'&&!o.fromNet&&!e.remote&&!e.puppet&&!e.isPlayer)mpSend({t:'kill',id:e.id,dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w))});
   e.dead=true;e._far=false;e.deadT=0;e.asleep=false;e.hideBody=false;const i=units.indexOf(e);if(i>=0)units.splice(i,1);corpses.push(e);
-  if(e.team===1)kills++;if(VILL){if(e.civ){vProsper=Math.max(0,vProsper-15);banner('A villager has fallen!',1500);}else if(e.team===1)vCoins+=5;}
+  if(e.team===1&&!e.remote)kills++;if(VILL){if(e.civ){vProsper=Math.max(0,vProsper-15);banner('A villager has fallen!',1500);}else if(e.team===1)vCoins+=5;}
   if(e.horse){bloodBurst(e.x,e.y+1,e.z,dx,dz,S.gore>=1?36:10);sfx('neigh',vol(e));if(S.gore>=1)makePool(e.x,e.z,S.gore===2?2.6:1.6);}
   const f=(kb*.55+3.5)*(o.expl?1.4:1);
   for(let k=0;k<15;k++){const q=k*3,m=rnd(.7,1.2);e.Q[q]=e.P[q]-(dx*f*m+e.vx*.8+rnd(-.8,.8))/60;e.Q[q+1]=e.P[q+1]-(rnd(2.5,5)*(o.expl?2:1))/60;e.Q[q+2]=e.P[q+2]-(dz*f*m+e.vz*.8+rnd(-.8,.8))/60;}
   goreOnKill(e,dmg,dx,dz,w,o,-e.hp);deathSpeech(e,o);if(!o.calm&&!e.noWeapon&&e.wMesh&&Math.random()<.4)dropWeapon(e,dx,dz);
   sfx(e.isPlayer?'hurt':'hit',vol(e));
   while(corpses.length>(S.army>=80?160:S.army>=50?120:90)){removeUnit(corpses.shift());}
-  if(e.isPlayer){setPov(null);defeatT=2.6;banner('You have fallen',2600);}
+  if(e.isPlayer){setPov(null);if(MP.inMatch)mpOnLocalDeath();else{defeatT=2.6;banner('You have fallen',2600);}}
 }
 function rayHit(ox,oy,oz,dx,dy,dz,maxT,team){
   let best=null,bt=maxT,head=false;
@@ -1380,8 +1424,8 @@ renderer.domElement.addEventListener('mousedown',e=>{
 addEventListener('mouseup',e=>{if(e.button===0){mouse.l=false;}else if(e.button===2)mouse.r=false;});
 renderer.domElement.addEventListener('wheel',e=>{if(state!=='play')return;e.preventDefault();if(GOD)setTool(godTool+(e.deltaY>0?1:-1));else setWeapon((player.wi+(e.deltaY>0?1:WEAPONS.length-1))%WEAPONS.length);},{passive:false});
 
-function setCmd(c){cmd=c;const n={charge:'Charge!',hold:'Hold the line',follow:'Follow me'}[c];banner(n,900);sfx('horn',.35);for(const u of units)if(u.team===0)u.tt=0;cmdVoice(c);syncUI();}
-function rally(){
+function setCmd(c){if(MP.inMatch&&!MP.host){mpSend({t:'cmd',c});banner({charge:'Charge!',hold:'Hold the line',follow:'Follow me'}[c],900);return;}cmd=c;const n={charge:'Charge!',hold:'Hold the line',follow:'Follow me'}[c];banner(n,900);sfx('horn',.35);for(const u of units)if(u.team===0)u.tt=0;cmdVoice(c);syncUI();}
+function rally(){if(MP.inMatch&&!MP.host){mpSend({t:'rally'});return;}
   if(rallyCd>0||!player||player.dead)return;rallyCd=30;sfx('horn');banner('Rally!',1200);rallyVoice();
   for(const u of units)if(u.team===0){u.buff=10;u.hp=Math.min(u.maxhp,u.hp+(u.isPlayer?30:25));}
 }
@@ -1735,6 +1779,225 @@ function updateVillHud(){
   else pr.hidden=true;
 }
 
+/* ------------------------------------------------------- online multiplayer */
+// Optional: put your Supabase details here so players do not have to type them.
+// The anon key is meant to be public. NEVER put a service_role key in this file.
+const MP_CONFIG={url:'',key:''};
+const MP={on:false,inMatch:false,host:false,id:'p'+Math.random().toString(36).slice(2,9),name:'',sb:null,ch:null,code:'',mode:'coop',pendingMode:'coop',
+  roster:{},peers:{},units:{},spawnQ:[],kills:0,deaths:0,tP:0,tS:0,tH:0,respawnT:0,armyN:30,cfg:{url:MP_CONFIG.url,key:MP_CONFIG.key}};
+try{const v=JSON.parse(localStorage.getItem('warlord-mp')||'{}');if(v.url)MP.cfg.url=v.url;if(v.key)MP.cfg.key=v.key;if(v.name)MP.name=v.name;}catch(e){}
+function mpSave(){try{localStorage.setItem('warlord-mp',JSON.stringify({url:MP.cfg.url,key:MP.cfg.key,name:MP.name}));}catch(e){}}
+function mpStatus(t){const el=$('mpStatus');if(el)el.textContent=t;}
+function mpSend(o){if(!MP.ch||!MP.on)return;try{MP.ch.send({type:'broadcast',event:'m',payload:o});}catch(e){}}
+function mpReadFields(){MP.cfg.url=$('mpUrl').value.trim();MP.cfg.key=$('mpKey').value.trim();MP.name=($('mpName').value||'Warlord').trim().slice(0,16);mpSave();}
+function mpClient(){
+  if(MP.sb&&MP.sbKey===MP.cfg.url+'|'+MP.cfg.key)return MP.sb;
+  if(!window.supabase||!window.supabase.createClient){mpStatus('The Supabase library did not load. Online play needs internet access and a normal web page such as GitHub Pages.');return null;}
+  if(!MP.cfg.url||!MP.cfg.key){mpStatus('Enter your Supabase URL and anon key first.');return null;}
+  try{MP.sb=window.supabase.createClient(MP.cfg.url,MP.cfg.key,{realtime:{params:{eventsPerSecond:30}}});MP.sbKey=MP.cfg.url+'|'+MP.cfg.key;}
+  catch(e){mpStatus('Could not create the Supabase client: '+e.message);return null;}
+  return MP.sb;
+}
+async function mpCreate(){
+  initAudio();unlockSpeech();mpReadFields();const sb=mpClient();if(!sb)return;mpStatus('Creating room...');
+  try{const{data,error}=await sb.rpc('create_room',{p_host:MP.name,p_mode:MP.pendingMode,p_max:8});
+    if(error||!data){mpStatus('Could not create a room: '+(error?error.message:'no data')+'. Did you run the SQL file?');return;}
+    const row=Array.isArray(data)?data[0]:data;mpEnter(row.code,true,row.mode);}
+  catch(e){mpStatus('Network error: '+e.message);}
+}
+async function mpJoin(){
+  initAudio();unlockSpeech();mpReadFields();const sb=mpClient();if(!sb)return;
+  const code=($('mpCode').value||'').trim().toUpperCase();if(!code){mpStatus('Enter a room code.');return;}
+  mpStatus('Joining...');
+  try{const{data,error}=await sb.rpc('join_room',{p_code:code});
+    if(error||!data){mpStatus('Could not join: '+(error?error.message:'room not found'));return;}
+    const row=Array.isArray(data)?data[0]:data;mpEnter(row.code,false,row.mode);}
+  catch(e){mpStatus('Network error: '+e.message);}
+}
+function mpEnter(code,host,mode){
+  MP.on=true;MP.host=host;MP.code=code;MP.mode=mode;MP.roster={};MP.peers={};MP.units={};
+  const ch=MP.sb.channel('warlord:'+code,{config:{broadcast:{self:false},presence:{key:MP.id}}});MP.ch=ch;
+  ch.on('broadcast',{event:'m'},({payload})=>{try{mpRecv(payload);}catch(e){console.error(e);}});
+  ch.on('presence',{event:'sync'},()=>{try{mpPresence();}catch(e){console.error(e);}});
+  ch.subscribe(async st=>{
+    if(st==='SUBSCRIBED'){await ch.track({name:MP.name,host});mpStatus((host?'Room ':'Joined room ')+code+'. Share the code and wait in the lobby.');mpLobbyUI();if(!host)mpSend({t:'hello'});}
+    else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'){mpStatus('Connection problem ('+st+'). Check your keys and that Realtime is enabled.');}
+  });
+  MP.tH=0;mpLobbyUI();
+}
+function mpPresence(){
+  const st=MP.ch.presenceState();MP.roster={};
+  for(const id of Object.keys(st)){const m=st[id][0]||{};MP.roster[id]={name:m.name||'Player',host:!!m.host};}
+  for(const pid of Object.keys(MP.peers))if(!MP.roster[pid])mpRemovePeer(pid);
+  if(MP.inMatch&&!MP.host&&MP.mode==='coop'){let h=false;for(const id in MP.roster)if(MP.roster[id].host)h=true;if(!h&&Object.keys(MP.roster).length){banner('The host left the room',2500);mpLeave();return;}}
+  mpLobbyUI();
+}
+function mpLobbyUI(){
+  const inRoom=MP.on&&!!MP.code;$('mpConnect').hidden=inRoom;$('mpLobby').hidden=!inRoom;if(!inRoom)return;
+  $('mpRoomCode').textContent=MP.code+' ('+(MP.mode==='coop'?'Co-op':'Free for all')+')';
+  const r=$('mpRoster');r.innerHTML='';
+  for(const id in MP.roster){const d=document.createElement('div');d.textContent=MP.roster[id].name+(MP.roster[id].host?' (host)':'')+(id===MP.id?' (you)':'');r.appendChild(d);}
+  $('mpStart').hidden=!MP.host||MP.inMatch;
+}
+function mpHostStart(){
+  if(!MP.host||MP.inMatch)return;const army=clamp(S.army||30,15,50);
+  mpSend({t:'start',mode:MP.mode,army});mpBeginMatch(MP.mode,army);
+  try{MP.sb.rpc('touch_room',{p_code:MP.code,p_status:'playing',p_count:Object.keys(MP.roster).length});}catch(e){}
+}
+function mpBeginMatch(mode,army){
+  MP.inMatch=true;MP.mode=mode;MP.armyN=army||30;MP.kills=0;MP.deaths=0;MP.peers={};MP.units={};MP.spawnQ=[];MP.respawnT=0;
+  wave=1;kills=0;$('mpPanel').hidden=true;$('menu').hidden=true;startBattle();mpLobbyUI();
+  banner(mode==='coop'?'Co-op battle. Stand together!':'Free for all. Last warlord standing!',2400);
+}
+function mpSpawn(){
+  const n=MP.armyN||30;
+  if(MP.mode==='coop'&&MP.host){
+    const pc=Math.max(1,Object.keys(MP.roster).length),ne=Math.min(150,Math.round(n*(1+(wave-1)*.25)*(1+.35*(pc-1))));
+    spawnSide(0,n,75,44,92);spawnSide(1,ne,60+wave*4,44,92);
+  }
+  mpSpawnLocal();
+}
+function mpSpawnLocal(){
+  const wi=player?player.wi:0,idx=Math.max(0,Object.keys(MP.roster).sort().indexOf(MP.id));let x,z;
+  if(MP.mode==='ffa'){x=rnd(-70,70);z=rnd(-70,70);}else{x=-18+idx*6+rnd(-1,1);z=52;}
+  player=makeUnit(0,x,z,wi,{player:true,hp:200,f:S.pg==='f',armor:'mail'});player.cdw=0;player.name=MP.name||'Warlord';
+  if(MP.mode==='ffa')camYaw=rnd(0,6.28);
+}
+function mpOnLocalDeath(){
+  MP.deaths++;MP.respawnT=4;banner('You were slain. Respawning...',2500);
+  mpSend({t:'pk',by:player.lastAttacker||'',victim:MP.name||'Warlord'});
+}
+function mpRespawn(){mpSpawnLocal();buildVM();syncUI();banner('Fight!',900);}
+function mpQueueSpawn(u){MP.units[u.id]=u;MP.spawnQ.push([u.id,u.team,u.wi,u.g==='f'?1:0,u.armor,u.mount?1:0,u.name,Math.round(u.hp),Math.round(u.x),Math.round(u.z)]);}
+function mpSendAllSpawns(){
+  const q=[];for(const u of units){if(u.isPlayer||u.remote||u.puppet)continue;MP.units[u.id]=u;q.push([u.id,u.team,u.wi,u.g==='f'?1:0,u.armor,u.mount?1:0,u.name,Math.round(u.hp),Math.round(u.x),Math.round(u.z)]);}
+  for(let i=0;i<q.length;i+=60)mpSend({t:'spawn',u:q.slice(i,i+60)});
+}
+function mpSnapshot(){
+  const u=[];for(const e of units){if(e.isPlayer||e.remote||e.puppet)continue;u.push([e.id,Math.round(e.x*10),Math.round(e.z*10),Math.round(e.y*10),Math.round(e.yaw*100),Math.round(e.spd*100),e.atkT>=0?1:0,e.block?1:0]);}
+  mpSend({t:'snap',w:wave,k:kills,u});
+}
+function mpTick(dt){
+  if(!MP.on)return;
+  if(MP.host){MP.tH-=dt;if(MP.tH<=0){MP.tH=30;try{MP.sb.rpc('touch_room',{p_code:MP.code,p_status:null,p_count:Object.keys(MP.roster).length});}catch(e){}}}
+  if(!MP.inMatch)return;
+  MP.tP-=dt;
+  if(MP.tP<=0&&player){MP.tP=.1;const p=player;
+    mpSend({t:'p',id:MP.id,n:MP.name||'Warlord',x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+p.yaw.toFixed(2),w:p.wi,a:p.atkT>=0?1:0,k:p.block?1:0,m:p.mount?1:0,h:Math.round(p.hp),d:p.dead?1:0,f:p.g==='f'?1:0,kl:MP.kills,dh:MP.deaths});}
+  if(MP.host&&MP.mode==='coop'){
+    MP.tS-=dt;if(MP.tS<=0){MP.tS=.2;mpSnapshot();}
+    if(MP.spawnQ.length){const q=MP.spawnQ.splice(0,MP.spawnQ.length);for(let i=0;i<q.length;i+=60)mpSend({t:'spawn',u:q.slice(i,i+60)});}
+  }
+  if(MP.respawnT>0){MP.respawnT-=dt;if(MP.respawnT<=0)mpRespawn();}
+}
+function mpNextWave(){
+  wave++;victoryT=0;victSaid=false;reinfLeft=3;reinfT=50;
+  const n=MP.armyN||30,pc=Math.max(1,Object.keys(MP.roster).length),ne=Math.min(150,Math.round(n*(1+(wave-1)*.25)*(1+.35*(pc-1))));
+  spawnSide(1,ne,60+wave*4,44,92);spawnSide(0,Math.round(n*.4),75,100,120);
+  for(const u of units)if(u.team===0&&!u.isPlayer&&!u.remote)u.hp=Math.min(u.maxhp,u.hp+30);
+  if(player&&!player.dead)player.hp=player.maxhp;
+  banner('Wave '+wave+'. They keep coming!',2400);sfx('horn');mpSend({t:'wave',w:wave});
+}
+function mpLabel(text,color){
+  const c=document.createElement('canvas');c.width=256;c.height=64;const x=c.getContext('2d');x.font='bold 30px sans-serif';x.textAlign='center';
+  x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,8,256,48);x.fillStyle=color;x.fillText(String(text).slice(0,16),128,44);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false,toneMapped:false}));sp.scale.set(2.4,.6,1);return sp;
+}
+function mpRemovePeer(pid){
+  const e=MP.peers[pid];if(!e)return;const u=e.u,i=units.indexOf(u);if(i>=0)units.splice(i,1);const j=corpses.indexOf(u);if(j>=0)corpses.splice(j,1);
+  removeUnit(u);delete MP.peers[pid];
+}
+function mpRemoteState(p){
+  if(p.id===MP.id)return;let e=MP.peers[p.id];
+  if(!e||(e.u.dead&&!p.d)){
+    if(e&&e.u.dead)delete MP.peers[p.id];
+    const team=MP.mode==='coop'?0:1;
+    const u=makeUnit(team,p.x,p.z,p.w,{hp:200,f:!!p.f,armor:'mail',remote:true});u.remote=true;u.pid=p.id;u.name=p.n||'Player';
+    u.tx=p.x;u.tz=p.z;u.ty=p.y;u.tyaw=p.r;u.x=p.x;u.z=p.z;u.y=p.y;u.yaw=p.r;
+    u.label=mpLabel(u.name,team===0?'#7fb6ff':'#ff8a7a');scene.add(u.label);u.meshes.push(u.label);
+    e=MP.peers[p.id]={u};
+  }
+  const u=e.u;if(u.dead)return;
+  u.tx=p.x;u.tz=p.z;u.ty=p.y;u.tyaw=p.r;u.hp=p.h;u.block=!!p.k;e.kl=p.kl;e.dh=p.dh;e.name=p.n;
+  if(p.w!==u.wi&&WEAPONS[p.w])swapWeapon(u,p.w);
+  if(!!p.m!==!!u.mount){u.mount=!!p.m;if(u.mount)attachHorse(u);else removeHorse(u);}
+  if(p.a&&u.atkT<0){u.atkT=0;u.atkDur=.6;}
+  if(p.d&&!u.dead)killUnit(u,10,0,0,3,WEAPONS[0],{byAI:true,fromNet:true});
+}
+function remoteUpdate(u,dt){
+  const px=u.x,pz=u.z,k=Math.min(1,dt*10);
+  if(u.tx!==undefined){u.x+=(u.tx-u.x)*k;u.z+=(u.tz-u.z)*k;u.y+=(u.ty-u.y)*k;u.yaw+=angDiff(u.yaw,u.tyaw)*Math.min(1,dt*12);}
+  const sp=dt>0?Math.hypot(u.x-px,u.z-pz)/dt:0;u.walk+=sp*dt*2.3;u.spd=Math.min(1,sp/4);
+  if(u.puppet){if(u.tatk&&u.atkT<0&&!u._ap){u.atkT=0;u.atkDur=.7;}u._ap=!!u.tatk;}
+  if(u.atkT>=0){u.atkT+=dt/(u.atkDur||.7);if(u.atkT>=1)u.atkT=-1;}
+  if(u.label)u.label.position.set(u.x,u.y+2.4+(u.mount?.72:0),u.z);
+  poseAlive(u);
+}
+function mpHitCosmetic(e,dmg,dx,dz,w){
+  const P=e.P,g=S.gore;bloodBurst(P[CHEST*3],P[CHEST*3+1],P[CHEST*3+2],dx,dz,[5,14,24][g]+dmg*[.12,.4,.7][g]);sfx(w&&w.gore==='blade'?'slice':'hit',vol(e));
+}
+function mpHitPuppet(e,dmg,dx,dz,kb,w,o){
+  if(o.byAI)return;
+  mpSend({t:'hit',id:e.mpId,dmg,dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w)),h:o.head?1:0,ex:o.expl?1:0});
+  mpHitCosmetic(e,dmg,dx,dz,w);if(o.byPlayer)shake=Math.max(shake,.12);
+}
+function mpHitRemote(e,dmg,dx,dz,kb,w,o){
+  mpSend({t:'dmg',to:e.pid,dmg,dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w)),by:o.byAI?'ai':MP.id});
+  mpHitCosmetic(e,dmg,dx,dz,w);if(o.byPlayer)shake=Math.max(shake,.12);
+}
+function mpRecv(p){
+  if(!p||!p.t)return;
+  switch(p.t){
+    case'hello':if(MP.host&&MP.inMatch){mpSend({t:'start',mode:MP.mode,army:MP.armyN});setTimeout(mpSendAllSpawns,600);}break;
+    case'start':if(!MP.inMatch)mpBeginMatch(p.mode,p.army);break;
+    case'p':if(MP.inMatch)mpRemoteState(p);break;
+    case'spawn':if(MP.inMatch&&!MP.host)for(const m of p.u){if(MP.units[m[0]])continue;
+      const u=makeUnit(m[1],m[8],m[9],m[2],{hp:m[7],f:!!m[3],armor:m[4],mount:!!m[5],puppet:true});u.puppet=true;u.mpId=m[0];u.name=m[6];u.tx=u.x;u.tz=u.z;u.ty=u.y;u.tyaw=u.yaw;MP.units[m[0]]=u;}break;
+    case'snap':if(MP.inMatch&&!MP.host){
+      if(p.w!==wave){wave=p.w;banner('Wave '+wave,1800);}kills=p.k;
+      for(const m of p.u){const u=MP.units[m[0]];if(!u||u.dead)continue;u.tx=m[1]/10;u.tz=m[2]/10;u.ty=m[3]/10;u.tyaw=m[4]/100;u.tatk=m[6];u.block=!!m[7];}}break;
+    case'kill':if(MP.inMatch&&!MP.host){const u=MP.units[p.id];if(u&&!u.dead){u.puppet=false;u.hp=-1;killUnit(u,10,p.dx,p.dz,p.kb,WEAPONS[p.wi]||WEAPONS[0],{byAI:true,fromNet:true});}}break;
+    case'hit':if(MP.host&&MP.inMatch){const u=MP.units[p.id];if(u&&!u.dead)hitUnit(u,p.dmg,p.dx,p.dz,p.kb,WEAPONS[p.wi]||WEAPONS[0],{byPlayer:true,head:!!p.h,expl:!!p.ex});}break;
+    case'dmg':if(p.to===MP.id&&player&&!player.dead){player.lastAttacker=p.by;hitUnit(player,p.dmg,p.dx,p.dz,p.kb,WEAPONS[p.wi]||WEAPONS[0],{byAI:p.by==='ai',byRemote:true});}break;
+    case'pk':if(p.by===MP.id){MP.kills++;banner('You eliminated '+p.victim,1600);}break;
+    case'wave':if(!MP.host){wave=p.w;banner('Wave '+wave+'. They keep coming!',2400);sfx('horn');if(player&&!player.dead)player.hp=player.maxhp;}break;
+    case'cmd':if(MP.host&&MP.inMatch)setCmd(p.c);break;
+    case'rally':if(MP.host&&MP.inMatch)rally();break;
+  }
+}
+function updateMpBoard(){
+  const rows=[{n:(MP.name||'You')+' (you)',k:MP.kills,d:MP.deaths}];
+  for(const pid in MP.peers){const e=MP.peers[pid];rows.push({n:e.name||'Player',k:e.kl||0,d:e.dh||0});}
+  rows.sort((a,b)=>b.k-a.k);
+  $('mpBoard').innerHTML='<b>Room '+MP.code+'</b>'+(MP.mode==='coop'?' &nbsp; Wave '+wave:'')+rows.map(r=>'<div>'+r.n.replace(/[<>&]/g,'')+' &nbsp; <b>'+r.k+'</b> / '+r.d+'</div>').join('');
+}
+async function mpLeave(){
+  const was=MP.inMatch;
+  try{if(MP.sb&&MP.code){if(MP.kills>0||MP.deaths>0)await MP.sb.rpc('submit_score',{p_name:MP.name||'Player',p_mode:MP.mode,p_kills:MP.kills,p_deaths:MP.deaths,p_wave:wave});await MP.sb.rpc('leave_room',{p_code:MP.code});}}catch(e){}
+  try{if(MP.ch){MP.ch.untrack();MP.sb.removeChannel(MP.ch);}}catch(e){}
+  for(const pid of Object.keys(MP.peers))mpRemovePeer(pid);
+  MP.on=false;MP.inMatch=false;MP.host=false;MP.ch=null;MP.code='';MP.roster={};MP.peers={};MP.units={};MP.respawnT=0;MP.spawnQ=[];
+  mpLobbyUI();mpStatus('Left the room.');$('mpBoard').hidden=true;
+  if(was){clearAll();player=null;wave=1;kills=0;spawnArmies();prep=999;buildVM();syncUI();showMenu('start');}
+}
+async function mpBoardLoad(){
+  mpReadFields();const sb=mpClient();if(!sb)return;const el=$('mpBoardList');el.textContent='Loading...';
+  try{const{data,error}=await sb.from('leaderboard').select('player_name,mode,best_kills,matches').order('best_kills',{ascending:false}).limit(10);
+    if(error){el.textContent='Could not load: '+error.message;return;}
+    el.innerHTML='';(data||[]).forEach((r,i)=>{const d=document.createElement('div');d.textContent=(i+1)+'. '+r.player_name+' ('+(r.mode==='coop'?'co-op':'ffa')+'): '+r.best_kills+' kills, '+r.matches+' matches';el.appendChild(d);});
+    if(!data||!data.length)el.textContent='No scores yet.';}
+  catch(e){el.textContent='Network error: '+e.message;}
+}
+function mpBind(){
+  $('mpUrl').value=MP.cfg.url;$('mpKey').value=MP.cfg.key;$('mpName').value=MP.name;
+  $('mOnline').addEventListener('click',()=>{$('mpPanel').hidden=false;mpLobbyUI();});
+  $('mpClose').addEventListener('click',()=>{$('mpPanel').hidden=true;});
+  $('mpCreate').addEventListener('click',mpCreate);$('mpJoin').addEventListener('click',mpJoin);
+  $('mpStart').addEventListener('click',()=>{initAudio();unlockSpeech();mpHostStart();lockPointer();});
+  $('mpLeaveBtn').addEventListener('click',mpLeave);$('mpBoardBtn').addEventListener('click',mpBoardLoad);
+  $('segMpMode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;MP.pendingMode=b.dataset.v;for(const c of $('segMpMode').children)c.setAttribute('aria-pressed',String(c===b));});
+}
+
 const vm=new THREE.Group();camera.add(vm);let vmW=null;
 const vmArm=new THREE.Mesh(new THREE.CylinderGeometry(.045,.05,.55,6),matSteel);vmArm.position.set(0,-.12,.28);vmArm.rotation.x=1.98;
 const vmHand=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),matSkin);
@@ -1772,6 +2035,7 @@ function spawnSide(team,n,hp,z0,z1){
 }
 function spawnArmies(){
   if(VILL){spawnVillage();return;}
+  if(MP.inMatch){mpSpawn();return;}
   const n=S.army,ne=Math.min(220,Math.round(n*(1+(wave-1)*.25)));
   spawnSide(0,n,75,44,92);spawnSide(1,ne,60+wave*4,44,92);
   const wi=player?player.wi:0;
@@ -1790,10 +2054,11 @@ function clearAll(){
   PA.forEach(p=>p.a=false);SA.forEach(p=>p.a=false);for(const p of props)scene.remove(p.g);props.length=0;dropW.length=0;for(const b of bolts)for(const m of b.ms)scene.remove(m);bolts.length=0;for(const m of meteors)scene.remove(m.m);meteors.length=0;for(const r of ropes)for(const m of r.ms)scene.remove(m);ropes.length=0;for(let i=0;i<ND;i++)decalIM.setMatrixAt(i,ZERO);decalIM.instanceMatrix.needsUpdate=true;dI=0;bloodEl.innerHTML='';
 }
 function startBattle(){
-  GOD=S.mode==='god';VILL=S.mode==='village';if(!GOD&&!VILL&&S.army<15){S.army=15;saveS();}clearAll();const keep=player?player.wi:0;player=null;spawnArmies();if(keep!==player.wi)swapWeapon(player,keep);
+  GOD=S.mode==='god'&&!MP.inMatch;VILL=S.mode==='village'&&!MP.inMatch;if(!GOD&&!VILL&&S.army<15){S.army=15;saveS();}clearAll();const keep=player?player.wi:0;player=null;spawnArmies();if(keep!==player.wi)swapWeapon(player,keep);
   if(pov)setPov(null);victSaid=false;reinfLeft=S.reinf==='on'?3+Math.min(3,wave-1):0;reinfT=50;camYaw=0;camPitch=0;state='play';prep=3.2;
   if(GOD){reinfLeft=0;prep=.5;godPeace=true;godTime=1;godTimeI=0;godTool=0;godCd=0;player.ghost=true;player.hideBody=true;godCam.x=0;godCam.z=70;godCam.y=G(0,70)+28;camPitch=-.45;}
   if(VILL){reinfLeft=0;prep=.3;vDay=1;vDayT=0;vCoins=20;vProsper=0;vCarry=null;vRaid=false;vWarned=false;}
+  if(MP.inMatch){if(!MP.host||MP.mode==='ffa')reinfLeft=0;prep=1.5;}
   nightK=0;updateNight(0,0);if(!VILL)$('prompt').hidden=true;
   document.body.classList.toggle('god',GOD);document.body.classList.toggle('vill',VILL);buildHotbar();cmd=VILL?'hold':'charge';rallyCd=0;defeatT=0;victoryT=0;slowT=0;timeScale=1;
   $('menu').hidden=true;$('hud').hidden=false;buildVM();syncUI();
@@ -1868,10 +2133,10 @@ function update(dt){
   TIME+=dt;for(const a of ANIM)a.rotation.z+=dt*.5;
   if(prep>0&&state==='play'){prep-=dt;}
   for(const u of units){if(u.sayQ&&TIME>=u.sayQ.t){const q=u.sayQ;u.sayQ=null;say(u,q.text,q.o||{});}}
-  for(const u of units.slice()){if(u.isPlayer)continue;if(u.dying){updateDying(u,dt);bleedTick(u,dt);continue;}if(u.civ){civUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);continue;}aiUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);}
+  for(const u of units.slice()){if(u.isPlayer)continue;if(u.puppet||u.remote){remoteUpdate(u,dt);continue;}if(u.dying){updateDying(u,dt);bleedTick(u,dt);continue;}if(u.civ){civUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);continue;}aiUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);}
   if(player&&!player.dead){if(state==='play'){updatePlayer(dt);}else{player.vx*=.9;player.vz*=.9;}integrate(player,dt);poseAlive(player);}
   // separation
-  for(let i=0;i<units.length;i++){const a=units[i];if(a.ghost||a.hidden)continue;for(let j=i+1;j<units.length;j++){const b=units[j];if(b.ghost||b.hidden)continue;const dx=b.x-a.x,th=(a.mount||b.mount)?1.3:.8;if(dx>th||dx<-th)continue;const dz=b.z-a.z,d2=dx*dx+dz*dz;
+  for(let i=0;i<units.length;i++){const a=units[i];if(a.ghost||a.hidden||a.puppet)continue;for(let j=i+1;j<units.length;j++){const b=units[j];if(b.ghost||b.hidden||b.puppet)continue;const dx=b.x-a.x,th=(a.mount||b.mount)?1.3:.8;if(dx>th||dx<-th)continue;const dz=b.z-a.z,d2=dx*dx+dz*dz;
     if(d2<th*th&&d2>1e-6){const d=Math.sqrt(d2),o=(th-d)*.5,nx=dx/d,nz=dz/d;
       if(a.isPlayer){b.x+=nx*o*2;b.z+=nz*o*2;}else if(b.isPlayer){a.x-=nx*o*2;a.z-=nz*o*2;}else{a.x-=nx*o;a.z-=nz*o;b.x+=nx*o;b.z+=nz*o;}}}}
   // corpses
@@ -1883,8 +2148,8 @@ function update(dt){
   // end conditions
   if(state==='play'){
     if(defeatT>0){defeatT-=dt;if(defeatT<=0)showMenu('defeat');}
-    else if(prep<=0&&!GOD&&!VILL){let en=0;for(const u of units)if(u.team===1)en++;if(reinfLeft>0){reinfT-=dt;if(reinfT<=0||(en<=2&&reinfT<40)){spawnReinf();en=1;}else if(en===0)en=1;}
-      if(en===0){if(!victSaid){victSaid=true;chorus('victory');}victoryT+=dt;if(victoryT>1.6){banner('Victory',2000);showMenu('victory');}}}
+    else if(prep<=0&&!GOD&&!VILL&&!(MP.inMatch&&(!MP.host||MP.mode==='ffa'))){let en=0;for(const u of units)if(u.team===1)en++;if(reinfLeft>0){reinfT-=dt;if(reinfT<=0||(en<=2&&reinfT<40)){spawnReinf();en=1;}else if(en===0)en=1;}
+      if(en===0){if(!victSaid){victSaid=true;chorus('victory');}victoryT+=dt;if(victoryT>1.6){if(MP.inMatch){mpNextWave();}else{banner('Victory',2000);showMenu('victory');}}}}
   }
   if(slowT>0)slowT-=dt/Math.max(.2,timeScale);timeScale+=((slowT>0?.28:1)-timeScale)*Math.min(1,dt*9);
   shake*=Math.exp(-7*dt);vig.style.opacity=Math.max(0,parseFloat(vig.style.opacity||0)-dt*1.4);
@@ -1915,7 +2180,7 @@ function updateCamera(dt,realDt){
 function updateHUD(){
   let a=0,e=0;for(const u of units){if(u.team===0&&!u.isPlayer)a++;else if(u.team===1)e++;}
   $('cAlly').textContent=a;$('cEnemy').textContent=e;$('cKills').textContent=kills;$('cWave').textContent=wave;$('cReinf').textContent=reinfLeft;drawRadar();
-  if(VILL)updateVillHud();$('godTag').hidden=!GOD;if(GOD)$('godTag').textContent='God mode: '+TOOLS[godTool].n+' ('+TOOLS[godTool].d+') | '+['Time normal','Slow motion','Time frozen','Fast time'][godTimeI]+(godPeace?' | Ceasefire (N starts war)':' | War (N for peace)');
+  if(VILL)updateVillHud();$('mpBoard').hidden=!MP.inMatch;if(MP.inMatch)updateMpBoard();$('godTag').hidden=!GOD;if(GOD)$('godTag').textContent='God mode: '+TOOLS[godTool].n+' ('+TOOLS[godTool].d+') | '+['Time normal','Slow motion','Time frozen','Fast time'][godTimeI]+(godPeace?' | Ceasefire (N starts war)':' | War (N for peace)');
   const hp=Math.max(0,Math.round(player.hp));if(hp!==lastHp){lastHp=hp;$('hptxt').textContent=hp;$('hpfill').style.width=(hp/player.maxhp*100)+'%';}
   $('rally').textContent=rallyCd>0?'Rally cry ready in '+Math.ceil(rallyCd)+'s':'Rally cry ready (F)';
   $('cross').style.opacity=S.cam==='fp'||player.w.t!=='melee'?1:.55;
@@ -1929,7 +2194,8 @@ function frame(now){
   const real=Math.min(.05,(now-last)/1000);last=now;HDT=real;
   if(state==='play'&&S.gfx!=='std'){fpsA+=real;fpsN++;if(fpsA>5){const f=fpsN/fpsA;fpsA=0;fpsN=0;if(f<26){S.gfx=S.gfx==='ultra'?'high':'std';saveS();syncUI();banner('Graphics lowered for smoother play',1800);}}}else{fpsA=0;fpsN=0;}
   if(state==='play'&&GOD)godFrame(real);
-  if(state!=='paused'){update(real*timeScale*(GOD?godTime:1));}
+  if(state!=='paused'||MP.inMatch){update(real*timeScale*(GOD?godTime:1));}
+  mpTick(real);
   const cp=camera.position;for(const u of units){const d=(u.x-cp.x)*(u.x-cp.x)+(u.z-cp.z)*(u.z-cp.z);u._far=u._far?d>70*70:d>85*85;}
   for(const u of units)renderUnit(u);for(const u of corpses)renderUnit(u);
   if(player&&state==='play'&&!player.dead&&S.cam==='fp')updateVM(real);
@@ -1941,6 +2207,7 @@ function frame(now){
 /* ----------------------------------------------------------------- boot */
 syncUI();
 spawnArmies();prep=999;buildVM();syncUI();
+mpBind();
 showMenu('start');
 requestAnimationFrame(frame);
 })();
