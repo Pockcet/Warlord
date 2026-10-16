@@ -1782,6 +1782,7 @@ function updateVillHud(){
 /* ------------------------------------------------------- online multiplayer */
 // Optional: put your Supabase details here so players do not have to type them.
 // The anon key is meant to be public. NEVER put a service_role key in this file.
+  const MP_CONFIG={url:'https://ikluycqmvztbsfysazxl.supabase.co/rest/v1/',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrbHV5Y3Ftdnp0YnNmeXNhenhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTM5NTksImV4cCI6MjEwNzcyOTk1OX0.9E0GCoIiCHAbi1JguVHt4W3GjLPK-5hpWxkyG1uq-Uw'};
 const MP_CONFIG={url:'',key:''};
 const MP={on:false,inMatch:false,host:false,id:'p'+Math.random().toString(36).slice(2,9),name:'',sb:null,ch:null,code:'',mode:'coop',pendingMode:'coop',
   roster:{},peers:{},units:{},spawnQ:[],kills:0,deaths:0,tP:0,tS:0,tH:0,respawnT:0,armyN:30,cfg:{url:MP_CONFIG.url,key:MP_CONFIG.key}};
