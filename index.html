@@ -301,6 +301,7 @@ body.touch #mpBoard{top:auto;bottom:8px;right:50%;transform:translateX(50%);font
       <div class="seg" id="segMpMode" role="group" aria-label="Match type">
         <button data-v="coop" aria-pressed="true"><b>Co-op</b><small>Fight the AI waves together. The host runs the AI.</small></button>
         <button data-v="ffa" aria-pressed="false"><b>Free for all</b><small>Players only. Last warlord standing scores.</small></button>
+        <button data-v="war" aria-pressed="false"><b>War</b><small>Every player commands their own army. Armies and warlords fight each other. Last army standing wins.</small></button>
       </div>
       <div class="mprow"><button class="mpb" id="mpCreate">Create room</button></div>
       <div class="mprow"><input id="mpCode" type="text" maxlength="5" placeholder="CODE" autocomplete="off"><button class="mpb" id="mpJoin">Join room</button></div>
@@ -722,7 +723,7 @@ function makeUnit(team,x,z,wi,o){
     headGone:false,isPlayer:!!o.player,block:false,buff:0,slot:rnd(0,6.28),slotR:rnd(2.5,9),pool:false,lastHit:-99,hideBody:false,
     civ:!!o.civ,hidden:false,need:null,needT:rnd(8,22),workT:rnd(2,8),hideT:0,wp:null,speed:o.mount?rnd(7,8.2):rnd(2.7,3.5)*(o.armor==='plate'?.9:1),armor:o.armor||'none',armorRed:o.mount?.45:({none:0,mail:.2,plate:.4})[o.armor||'none'],mount:!!o.mount,retreatT:0,g:o.f?'f':'m',name:o.player?'Warlord':(o.mount?(o.f?'Dame ':'Sir '):'')+pick(o.f?NAMES.f:NAMES.m),pit:rnd(.88,1.15),bw:o.f?.92:1.03,lastSpeak:-9,sayQ:null,wd:new THREE.Vector3(0,1,0),dirty:true,wMesh:null,_g:false,_h:false};
   s.grp.fill(1);
-  const tm=o.player?matGold:o.civ?pick(matCiv):pick(teamMats[team]);
+  const tm=o.player?matGold:o.civ?pick(matCiv):o.fac?pick(o.fac):pick(teamMats[team]);
   const mm={torso:tm,skin:matSkin,steel:matSteel,pants:matPants[team],boots:matBoots[team]};
   const pm=(i,tag)=>{
     if(s.armor==='plate'){if(i===0)return tm;if([2,3,4,5,6,7,10,12].includes(i))return matPlate;if(i===11||i===13)return matSteelD;}
@@ -740,7 +741,7 @@ function makeUnit(team,x,z,wi,o){
   poseAlive(s);
   for(const c of CONS){const a=c[0]*3,b=c[1]*3;s.cons.push([c[0],c[1],Math.hypot(s.P[a]-s.P[b],s.P[a+1]-s.P[b+1],s.P[a+2]-s.P[b+2])]);}
   s.Q.set(s.P);
-  units.push(s);if(MP.inMatch&&MP.host&&MP.mode==='coop'&&!o.remote&&!o.player&&!o.puppet)mpQueueSpawn(s);return s;
+  units.push(s);if(MP.inMatch&&(MP.mode==='war'||(MP.host&&MP.mode==='coop'))&&!o.remote&&!o.player&&!o.puppet)mpQueueSpawn(s);return s;
 }
 function swapWeapon(s,wi){
   if(s.wMesh){scene.remove(s.wMesh);const i=s.meshes.indexOf(s.wMesh);if(i>=0)s.meshes.splice(i,1);}
@@ -1287,7 +1288,7 @@ function hitUnit(e,dmg,dx,dz,kb,w,o){
   if(e.hp<=0){if(!tryDying(e,dmg,dx,dz,kb,w,o))killUnit(e,dmg,dx,dz,kb,w,o);}
 }
 function killUnit(e,dmg,dx,dz,kb,w,o){
-  if(MP.inMatch&&MP.host&&MP.mode==='coop'&&!o.fromNet&&!e.remote&&!e.puppet&&!e.isPlayer)mpSend({t:'kill',id:e.id,dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w))});
+  if(MP.inMatch&&(MP.mode==='war'||(MP.host&&MP.mode==='coop'))&&!o.fromNet&&!e.remote&&!e.puppet&&!e.isPlayer)mpSend({t:'kill',o:MP.id,id:e.id,by:e.lastHitBy||'',dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w))});
   e.dead=true;e._far=false;e.deadT=0;e.asleep=false;e.hideBody=false;const i=units.indexOf(e);if(i>=0)units.splice(i,1);corpses.push(e);
   if(e.team===1&&!e.remote)kills++;if(VILL){if(e.civ){vProsper=Math.max(0,vProsper-15);banner('A villager has fallen!',1500);}else if(e.team===1)vCoins+=5;}
   if(e.horse){bloodBurst(e.x,e.y+1,e.z,dx,dz,S.gore>=1?36:10);sfx('neigh',vol(e));if(S.gore>=1)makePool(e.x,e.z,S.gore===2?2.6:1.6);}
@@ -1425,8 +1426,8 @@ renderer.domElement.addEventListener('mousedown',e=>{
 addEventListener('mouseup',e=>{if(e.button===0){mouse.l=false;}else if(e.button===2)mouse.r=false;});
 renderer.domElement.addEventListener('wheel',e=>{if(state!=='play')return;e.preventDefault();if(GOD)setTool(godTool+(e.deltaY>0?1:-1));else setWeapon((player.wi+(e.deltaY>0?1:WEAPONS.length-1))%WEAPONS.length);},{passive:false});
 
-function setCmd(c){if(MP.inMatch&&!MP.host){mpSend({t:'cmd',c});banner({charge:'Charge!',hold:'Hold the line',follow:'Follow me'}[c],900);return;}cmd=c;const n={charge:'Charge!',hold:'Hold the line',follow:'Follow me'}[c];banner(n,900);sfx('horn',.35);for(const u of units)if(u.team===0)u.tt=0;cmdVoice(c);syncUI();}
-function rally(){if(MP.inMatch&&!MP.host){mpSend({t:'rally'});return;}
+function setCmd(c){if(MP.inMatch&&MP.mode==='coop'&&!MP.host){mpSend({t:'cmd',c});banner({charge:'Charge!',hold:'Hold the line',follow:'Follow me'}[c],900);return;}cmd=c;const n={charge:'Charge!',hold:'Hold the line',follow:'Follow me'}[c];banner(n,900);sfx('horn',.35);for(const u of units)if(u.team===0)u.tt=0;cmdVoice(c);syncUI();}
+function rally(){if(MP.inMatch&&MP.mode==='coop'&&!MP.host){mpSend({t:'rally'});return;}
   if(rallyCd>0||!player||player.dead)return;rallyCd=30;sfx('horn');banner('Rally!',1200);rallyVoice();
   for(const u of units)if(u.team===0){u.buff=10;u.hp=Math.min(u.maxhp,u.hp+(u.isPlayer?30:25));}
 }
@@ -1783,9 +1784,9 @@ function updateVillHud(){
 /* ------------------------------------------------------- online multiplayer */
 // Optional: put your Supabase details here so players do not have to type them.
 // The anon key is meant to be public. NEVER put a service_role key in this file.
-const MP_CONFIG={url:'',key:''};
+const MP_CONFIG={url:'https://ikluycqmvztbsfysazxl.supabase.co/rest/v1/',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrbHV5Y3Ftdnp0YnNmeXNhenhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTM5NTksImV4cCI6MjEwNzcyOTk1OX0.9E0GCoIiCHAbi1JguVHt4W3GjLPK-5hpWxkyG1uq-Uw'};
 const MP={on:false,inMatch:false,host:false,id:'p'+Math.random().toString(36).slice(2,9),name:'',sb:null,ch:null,code:'',mode:'coop',pendingMode:'coop',
-  roster:{},peers:{},units:{},spawnQ:[],kills:0,deaths:0,tP:0,tS:0,tH:0,respawnT:0,armyN:30,cfg:{url:MP_CONFIG.url,key:MP_CONFIG.key}};
+  roster:{},peers:{},units:{},spawnQ:[],kills:0,deaths:0,tP:0,tS:0,tH:0,respawnT:0,armyN:30,eliminated:false,t:0,tE:1,ending:false,endT:0,cfg:{url:MP_CONFIG.url,key:MP_CONFIG.key}};
 try{const v=JSON.parse(localStorage.getItem('warlord-mp')||'{}');if(v.url)MP.cfg.url=v.url;if(v.key)MP.cfg.key=v.key;if(v.name)MP.name=v.name;}catch(e){}
 function mpSave(){try{localStorage.setItem('warlord-mp',JSON.stringify({url:MP.cfg.url,key:MP.cfg.key,name:MP.name}));}catch(e){}}
 function mpStatus(t){const el=$('mpStatus');if(el)el.textContent=t;}
@@ -1804,6 +1805,7 @@ function mpReadFields(){
 function mpExplain(error,what){
   if(!error)return 'Could not '+what+'.';
   const m=String(error.message||error),c=String(error.code||''),st=error.status||0;
+  if(/invalid mode/i.test(m))return 'The database does not know the War mode yet. Run supabase_war_update.sql in the Supabase SQL Editor, then try again.';
   if(c==='PGRST202'||/could not find the function/i.test(m))return 'The database function is missing. Run all of supabase_schema.sql in the SQL Editor, then try again. ('+m+')';
   if(c==='PGRST205'||c==='42P01'||/could not find the table/i.test(m))return 'The tables are missing. Run all of supabase_schema.sql in the SQL Editor. ('+m+')';
   if(c==='42501'||/permission denied/i.test(m))return 'Permission denied. Run the whole supabase_schema.sql again so the grants are applied. ('+m+')';
@@ -1862,29 +1864,37 @@ function mpPresence(){
   const st=MP.ch.presenceState();MP.roster={};
   for(const id of Object.keys(st)){const m=st[id][0]||{};MP.roster[id]={name:m.name||'Player',host:!!m.host};}
   for(const pid of Object.keys(MP.peers))if(!MP.roster[pid])mpRemovePeer(pid);
+  for(const k of Object.keys(MP.units)){const u=MP.units[k];if(u&&u.owner&&u.owner!==MP.id&&!MP.roster[u.owner]){mpDropUnit(u);delete MP.units[k];}}
   if(MP.inMatch&&!MP.host&&MP.mode==='coop'){let h=false;for(const id in MP.roster)if(MP.roster[id].host)h=true;if(!h&&Object.keys(MP.roster).length){banner('The host left the room',2500);mpLeave();return;}}
   mpLobbyUI();
 }
 function mpLobbyUI(){
   const inRoom=MP.on&&!!MP.code;$('mpConnect').hidden=inRoom;$('mpLobby').hidden=!inRoom;if(!inRoom)return;
-  $('mpRoomCode').textContent=MP.code+' ('+(MP.mode==='coop'?'Co-op':'Free for all')+')';
+  $('mpRoomCode').textContent=MP.code+' ('+({coop:'Co-op',ffa:'Free for all',war:'War'})[MP.mode]+')';
   const r=$('mpRoster');r.innerHTML='';
   for(const id in MP.roster){const d=document.createElement('div');d.textContent=MP.roster[id].name+(MP.roster[id].host?' (host)':'')+(id===MP.id?' (you)':'');r.appendChild(d);}
   $('mpStart').hidden=!MP.host||MP.inMatch;
 }
 function mpHostStart(){
-  if(!MP.host||MP.inMatch)return;const army=clamp(S.army||30,15,50);
+  if(!MP.host||MP.inMatch)return;const army=clamp(S.army||30,15,MP.mode==='war'?40:50);
   mpSend({t:'start',mode:MP.mode,army});mpBeginMatch(MP.mode,army);
   try{MP.sb.rpc('touch_room',{p_code:MP.code,p_status:'playing',p_count:Object.keys(MP.roster).length});}catch(e){}
 }
 function mpBeginMatch(mode,army){
-  MP.inMatch=true;MP.mode=mode;MP.armyN=army||30;MP.kills=0;MP.deaths=0;MP.peers={};MP.units={};MP.spawnQ=[];MP.respawnT=0;
+  MP.inMatch=true;MP.mode=mode;MP.armyN=army||30;MP.kills=0;MP.deaths=0;MP.peers={};MP.units={};MP.spawnQ=[];MP.respawnT=0;MP.eliminated=false;MP.t=0;MP.tE=1;MP.ending=false;
   wave=1;kills=0;$('mpPanel').hidden=true;$('menu').hidden=true;startBattle();mpLobbyUI();
-  banner(mode==='coop'?'Co-op battle. Stand together!':'Free for all. Last warlord standing!',2400);
+  banner(mode==='coop'?'Co-op battle. Stand together!':mode==='war'?'War! Destroy the other armies.':'Free for all. Last warlord standing!',2400);
+}
+function mpBaseOf(id){const ids=Object.keys(MP.roster).sort(),n=Math.max(1,ids.length),i=Math.max(0,ids.indexOf(id)),a=i/n*Math.PI*2+.4;return{x:Math.cos(a)*85,z:Math.sin(a)*85};}
+function spawnArmyAt(cx,cz,n,hp){
+  let i=0,fi=0;
+  while(i<n){const k=Math.min(n-i,rndi(4,9)),sx=cx+rnd(-22,22),sz=cz+rnd(-22,22);
+    for(let j=0;j<k;j++,i++){const lo=loadout(i,hp),u=makeUnit(0,clamp(sx+rnd(-6,6),-130,130),clamp(sz+rnd(-6,6),-135,135),lo.wi,{hp:lo.hp,f:(fi++)%2===0,armor:lo.armor,mount:lo.mount});u.owned=true;u.yaw=Math.atan2(-cx,-cz);}}
 }
 function mpSpawn(){
   const n=MP.armyN||30;
-  if(MP.mode==='coop'&&MP.host){
+  if(MP.mode==='war'){const b=mpBaseOf(MP.id);spawnArmyAt(b.x,b.z,n,75);}
+  else if(MP.mode==='coop'&&MP.host){
     const pc=Math.max(1,Object.keys(MP.roster).length),ne=Math.min(150,Math.round(n*(1+(wave-1)*.25)*(1+.35*(pc-1))));
     spawnSide(0,n,75,44,92);spawnSide(1,ne,60+wave*4,44,92);
   }
@@ -1892,36 +1902,51 @@ function mpSpawn(){
 }
 function mpSpawnLocal(){
   const wi=player?player.wi:0,idx=Math.max(0,Object.keys(MP.roster).sort().indexOf(MP.id));let x,z;
-  if(MP.mode==='ffa'){x=rnd(-70,70);z=rnd(-70,70);}else{x=-18+idx*6+rnd(-1,1);z=52;}
+  if(MP.mode==='ffa'){x=rnd(-70,70);z=rnd(-70,70);}else if(MP.mode==='war'){const b=mpBaseOf(MP.id);x=b.x*.82+rnd(-3,3);z=b.z*.82+rnd(-3,3);}else{x=-18+idx*6+rnd(-1,1);z=52;}
   player=makeUnit(0,x,z,wi,{player:true,hp:200,f:S.pg==='f',armor:'mail'});player.cdw=0;player.name=MP.name||'Warlord';
-  if(MP.mode==='ffa')camYaw=rnd(0,6.28);
+  if(MP.mode==='ffa')camYaw=rnd(0,6.28);else if(MP.mode==='war'){const b=mpBaseOf(MP.id);camYaw=Math.atan2(b.x,b.z);}
 }
 function mpOnLocalDeath(){
-  MP.deaths++;MP.respawnT=4;banner('You were slain. Respawning...',2500);
-  mpSend({t:'pk',by:player.lastAttacker||'',victim:MP.name||'Warlord'});
+  MP.deaths++;mpSend({t:'pk',by:player.lastAttacker||'',victim:MP.name||'Warlord'});
+  if(MP.mode==='war'&&mpMyArmy()===0){MP.eliminated=true;banner('Your army is gone. You are eliminated.',3500);return;}
+  MP.respawnT=MP.mode==='war'?5:4;banner('You were slain. Respawning...',2500);
 }
 function mpRespawn(){mpSpawnLocal();buildVM();syncUI();banner('Fight!',900);}
-function mpQueueSpawn(u){MP.units[u.id]=u;MP.spawnQ.push([u.id,u.team,u.wi,u.g==='f'?1:0,u.armor,u.mount?1:0,u.name,Math.round(u.hp),Math.round(u.x),Math.round(u.z)]);}
+const mpKey=(o,id)=>o+':'+id;
+const FACM=[[0xc23a2b,0x9a2a20,0xd9552f],[0x2f9e44,0x2b8a3e,0x40c057],[0x8e44ad,0x7d3c98,0xa569bd],[0xe67e22,0xca6f1e,0xf39c12],[0x1abc9c,0x17a589,0x48c9b0],[0xd63384,0xb02a6f,0xe85a9f],[0xecf0f1,0xbdc3c7,0xd5dbdb]].map(a=>a.map(c=>M(c)));
+function facOf(id){const ids=Object.keys(MP.roster).sort().filter(i=>i!==MP.id),r=ids.indexOf(id);return FACM[(r<0?0:r)%FACM.length];}
+function mpMeta(u){return[u.id,u.team,u.wi,u.g==='f'?1:0,u.armor,u.mount?1:0,u.name,Math.round(u.hp),Math.round(u.x),Math.round(u.z)];}
+function mpQueueSpawn(u){MP.units[mpKey(MP.id,u.id)]=u;u.owner=MP.id;MP.spawnQ.push(mpMeta(u));}
 function mpSendAllSpawns(){
-  const q=[];for(const u of units){if(u.isPlayer||u.remote||u.puppet)continue;MP.units[u.id]=u;q.push([u.id,u.team,u.wi,u.g==='f'?1:0,u.armor,u.mount?1:0,u.name,Math.round(u.hp),Math.round(u.x),Math.round(u.z)]);}
-  for(let i=0;i<q.length;i+=60)mpSend({t:'spawn',u:q.slice(i,i+60)});
+  const q=[];for(const u of units){if(u.isPlayer||u.remote||u.puppet)continue;MP.units[mpKey(MP.id,u.id)]=u;u.owner=MP.id;q.push(mpMeta(u));}
+  for(let i=0;i<q.length;i+=60)mpSend({t:'spawn',o:MP.id,u:q.slice(i,i+60)});
 }
 function mpSnapshot(){
   const u=[];for(const e of units){if(e.isPlayer||e.remote||e.puppet)continue;u.push([e.id,Math.round(e.x*10),Math.round(e.z*10),Math.round(e.y*10),Math.round(e.yaw*100),Math.round(e.spd*100),e.atkT>=0?1:0,e.block?1:0]);}
-  mpSend({t:'snap',w:wave,k:kills,u});
+  mpSend({t:'snap',o:MP.id,w:wave,k:kills,u});
 }
+function mpMyArmy(){let n=0;for(const u of units)if(u.owned&&!u.dead)n++;return n;}
+function mpDropUnit(u){const i=units.indexOf(u);if(i>=0)units.splice(i,1);const j=corpses.indexOf(u);if(j>=0)corpses.splice(j,1);removeUnit(u);}
+function mpEndWar(w){MP.ending=true;MP.endT=7;banner((w||'Nobody')+' wins the war!',6000);sfx('horn');}
 function mpTick(dt){
   if(!MP.on)return;
   if(MP.host){MP.tH-=dt;if(MP.tH<=0){MP.tH=30;try{MP.sb.rpc('touch_room',{p_code:MP.code,p_status:null,p_count:Object.keys(MP.roster).length});}catch(e){}}}
   if(!MP.inMatch)return;
-  MP.tP-=dt;
+  MP.t+=dt;MP.tP-=dt;
   if(MP.tP<=0&&player){MP.tP=.1;const p=player;
-    mpSend({t:'p',id:MP.id,n:MP.name||'Warlord',x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+p.yaw.toFixed(2),w:p.wi,a:p.atkT>=0?1:0,k:p.block?1:0,m:p.mount?1:0,h:Math.round(p.hp),d:p.dead?1:0,f:p.g==='f'?1:0,kl:MP.kills,dh:MP.deaths});}
-  if(MP.host&&MP.mode==='coop'){
+    mpSend({t:'p',id:MP.id,n:MP.name||'Warlord',x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+p.yaw.toFixed(2),w:p.wi,a:p.atkT>=0?1:0,k:p.block?1:0,m:p.mount?1:0,h:Math.round(p.hp),d:p.dead?1:0,f:p.g==='f'?1:0,kl:MP.kills,dh:MP.deaths,ar:MP.mode==='war'?mpMyArmy():0,el:MP.eliminated?1:0});}
+  if(MP.mode==='war'||(MP.host&&MP.mode==='coop')){
     MP.tS-=dt;if(MP.tS<=0){MP.tS=.2;mpSnapshot();}
-    if(MP.spawnQ.length){const q=MP.spawnQ.splice(0,MP.spawnQ.length);for(let i=0;i<q.length;i+=60)mpSend({t:'spawn',u:q.slice(i,i+60)});}
+    if(MP.spawnQ.length){const q=MP.spawnQ.splice(0,MP.spawnQ.length);for(let i=0;i<q.length;i+=60)mpSend({t:'spawn',o:MP.id,u:q.slice(i,i+60)});}
   }
-  if(MP.respawnT>0){MP.respawnT-=dt;if(MP.respawnT<=0)mpRespawn();}
+  if(MP.respawnT>0){MP.respawnT-=dt;if(MP.respawnT<=0){if(MP.mode==='war'&&mpMyArmy()===0){MP.eliminated=true;banner('Your army is gone. You are eliminated.',3500);}else mpRespawn();}}
+  if(MP.mode==='war'&&MP.host&&!MP.ending&&MP.t>20){
+    MP.tE-=dt;
+    if(MP.tE<=0){MP.tE=1;const ids=Object.keys(MP.roster);
+      if(ids.length>=2){const alive=ids.filter(id=>id===MP.id?!MP.eliminated:!(MP.peers[id]&&MP.peers[id].el));
+        if(alive.length<=1){const w=alive[0]?(alive[0]===MP.id?MP.name:(MP.roster[alive[0]]||{}).name):'Nobody';mpSend({t:'end',w});mpEndWar(w);}}}
+  }
+  if(MP.ending){MP.endT-=dt;if(MP.endT<=0&&MP.host){MP.ending=false;mpSend({t:'start',mode:MP.mode,army:MP.armyN,restart:1});mpBeginMatch(MP.mode,MP.armyN);}}
 }
 function mpNextWave(){
   wave++;victoryT=0;victSaid=false;reinfLeft=3;reinfT=50;
@@ -1945,13 +1970,13 @@ function mpRemoteState(p){
   if(!e||(e.u.dead&&!p.d)){
     if(e&&e.u.dead)delete MP.peers[p.id];
     const team=MP.mode==='coop'?0:1;
-    const u=makeUnit(team,p.x,p.z,p.w,{hp:200,f:!!p.f,armor:'mail',remote:true});u.remote=true;u.pid=p.id;u.name=p.n||'Player';
+    const u=makeUnit(team,p.x,p.z,p.w,{hp:200,f:!!p.f,armor:'mail',remote:true,fac:MP.mode==='war'?facOf(p.id):null});u.remote=true;u.pid=p.id;u.name=p.n||'Player';
     u.tx=p.x;u.tz=p.z;u.ty=p.y;u.tyaw=p.r;u.x=p.x;u.z=p.z;u.y=p.y;u.yaw=p.r;
     u.label=mpLabel(u.name,team===0?'#7fb6ff':'#ff8a7a');scene.add(u.label);u.meshes.push(u.label);
     e=MP.peers[p.id]={u};
   }
   const u=e.u;if(u.dead)return;
-  u.tx=p.x;u.tz=p.z;u.ty=p.y;u.tyaw=p.r;u.hp=p.h;u.block=!!p.k;e.kl=p.kl;e.dh=p.dh;e.name=p.n;
+  u.tx=p.x;u.tz=p.z;u.ty=p.y;u.tyaw=p.r;u.hp=p.h;u.block=!!p.k;e.kl=p.kl;e.dh=p.dh;e.name=p.n;e.ar=p.ar;e.el=!!p.el;
   if(p.w!==u.wi&&WEAPONS[p.w])swapWeapon(u,p.w);
   if(!!p.m!==!!u.mount){u.mount=!!p.m;if(u.mount)attachHorse(u);else removeHorse(u);}
   if(p.a&&u.atkT<0){u.atkT=0;u.atkDur=.6;}
@@ -1970,39 +1995,44 @@ function mpHitCosmetic(e,dmg,dx,dz,w){
   const P=e.P,g=S.gore;bloodBurst(P[CHEST*3],P[CHEST*3+1],P[CHEST*3+2],dx,dz,[5,14,24][g]+dmg*[.12,.4,.7][g]);sfx(w&&w.gore==='blade'?'slice':'hit',vol(e));
 }
 function mpHitPuppet(e,dmg,dx,dz,kb,w,o){
-  if(o.byAI)return;
-  mpSend({t:'hit',id:e.mpId,dmg,dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w)),h:o.head?1:0,ex:o.expl?1:0});
+  if(o.byAI&&MP.mode!=='war')return;
+  mpSend({t:'hit',to:e.owner,from:MP.id,id:e.mpId,dmg,dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w)),h:o.head?1:0,ex:o.expl?1:0});
   mpHitCosmetic(e,dmg,dx,dz,w);if(o.byPlayer)shake=Math.max(shake,.12);
 }
 function mpHitRemote(e,dmg,dx,dz,kb,w,o){
-  mpSend({t:'dmg',to:e.pid,dmg,dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w)),by:o.byAI?'ai':MP.id});
+  mpSend({t:'dmg',to:e.pid,dmg,dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w)),by:(o.byAI&&MP.mode!=='war')?'ai':MP.id});
   mpHitCosmetic(e,dmg,dx,dz,w);if(o.byPlayer)shake=Math.max(shake,.12);
 }
 function mpRecv(p){
   if(!p||!p.t)return;
   switch(p.t){
-    case'hello':if(MP.host&&MP.inMatch){mpSend({t:'start',mode:MP.mode,army:MP.armyN});setTimeout(mpSendAllSpawns,600);}break;
-    case'start':if(!MP.inMatch)mpBeginMatch(p.mode,p.army);break;
+    case'hello':if(MP.inMatch){if(MP.host)mpSend({t:'start',mode:MP.mode,army:MP.armyN});if(MP.mode==='war'||MP.host)setTimeout(mpSendAllSpawns,600);}break;
+    case'start':if(!MP.inMatch||p.restart)mpBeginMatch(p.mode,p.army);break;
     case'p':if(MP.inMatch)mpRemoteState(p);break;
-    case'spawn':if(MP.inMatch&&!MP.host)for(const m of p.u){if(MP.units[m[0]])continue;
-      const u=makeUnit(m[1],m[8],m[9],m[2],{hp:m[7],f:!!m[3],armor:m[4],mount:!!m[5],puppet:true});u.puppet=true;u.mpId=m[0];u.name=m[6];u.tx=u.x;u.tz=u.z;u.ty=u.y;u.tyaw=u.yaw;MP.units[m[0]]=u;}break;
-    case'snap':if(MP.inMatch&&!MP.host){
-      if(p.w!==wave){wave=p.w;banner('Wave '+wave,1800);}kills=p.k;
-      for(const m of p.u){const u=MP.units[m[0]];if(!u||u.dead)continue;u.tx=m[1]/10;u.tz=m[2]/10;u.ty=m[3]/10;u.tyaw=m[4]/100;u.tatk=m[6];u.block=!!m[7];}}break;
-    case'kill':if(MP.inMatch&&!MP.host){const u=MP.units[p.id];if(u&&!u.dead){u.puppet=false;u.hp=-1;killUnit(u,10,p.dx,p.dz,p.kb,WEAPONS[p.wi]||WEAPONS[0],{byAI:true,fromNet:true});}}break;
-    case'hit':if(MP.host&&MP.inMatch){const u=MP.units[p.id];if(u&&!u.dead)hitUnit(u,p.dmg,p.dx,p.dz,p.kb,WEAPONS[p.wi]||WEAPONS[0],{byPlayer:true,head:!!p.h,expl:!!p.ex});}break;
+    case'spawn':if(MP.inMatch&&p.o!==MP.id)for(const m of p.u){const key=mpKey(p.o,m[0]);if(MP.units[key])continue;
+      const u=makeUnit(MP.mode==='war'?1:m[1],m[8],m[9],m[2],{hp:m[7],f:!!m[3],armor:m[4],mount:!!m[5],puppet:true,fac:MP.mode==='war'?facOf(p.o):null});
+      u.puppet=true;u.mpId=m[0];u.owner=p.o;u.name=m[6];u.tx=u.x;u.tz=u.z;u.ty=u.y;u.tyaw=u.yaw;MP.units[key]=u;}break;
+    case'snap':if(MP.inMatch&&p.o!==MP.id){
+      if(MP.mode==='coop'){if(p.w!==wave){wave=p.w;banner('Wave '+wave,1800);}kills=p.k;}
+      for(const m of p.u){const u=MP.units[mpKey(p.o,m[0])];if(!u||u.dead)continue;u.tx=m[1]/10;u.tz=m[2]/10;u.ty=m[3]/10;u.tyaw=m[4]/100;u.tatk=m[6];u.block=!!m[7];}}break;
+    case'kill':if(MP.inMatch&&p.o!==MP.id){const u=MP.units[mpKey(p.o,p.id)];
+      if(u&&!u.dead){u.puppet=false;u.hp=-1;killUnit(u,10,p.dx,p.dz,p.kb,WEAPONS[p.wi]||WEAPONS[0],{byAI:true,fromNet:true});if(p.by&&p.by===MP.id)MP.kills++;}}break;
+    case'hit':if(MP.inMatch&&p.to===MP.id){const u=MP.units[mpKey(MP.id,p.id)];
+      if(u&&!u.dead){u.lastHitBy=p.from;hitUnit(u,p.dmg,p.dx,p.dz,p.kb,WEAPONS[p.wi]||WEAPONS[0],{byPlayer:true,head:!!p.h,expl:!!p.ex});}}break;
     case'dmg':if(p.to===MP.id&&player&&!player.dead){player.lastAttacker=p.by;hitUnit(player,p.dmg,p.dx,p.dz,p.kb,WEAPONS[p.wi]||WEAPONS[0],{byAI:p.by==='ai',byRemote:true});}break;
     case'pk':if(p.by===MP.id){MP.kills++;banner('You eliminated '+p.victim,1600);}break;
-    case'wave':if(!MP.host){wave=p.w;banner('Wave '+wave+'. They keep coming!',2400);sfx('horn');if(player&&!player.dead)player.hp=player.maxhp;}break;
-    case'cmd':if(MP.host&&MP.inMatch)setCmd(p.c);break;
-    case'rally':if(MP.host&&MP.inMatch)rally();break;
+    case'wave':if(!MP.host&&MP.mode==='coop'){wave=p.w;banner('Wave '+wave+'. They keep coming!',2400);sfx('horn');if(player&&!player.dead)player.hp=player.maxhp;}break;
+    case'end':if(MP.inMatch)mpEndWar(p.w);break;
+    case'cmd':if(MP.host&&MP.inMatch&&MP.mode==='coop')setCmd(p.c);break;
+    case'rally':if(MP.host&&MP.inMatch&&MP.mode==='coop')rally();break;
   }
 }
 function updateMpBoard(){
-  const rows=[{n:(MP.name||'You')+' (you)',k:MP.kills,d:MP.deaths}];
-  for(const pid in MP.peers){const e=MP.peers[pid];rows.push({n:e.name||'Player',k:e.kl||0,d:e.dh||0});}
+  const war=MP.mode==='war';if(war)kills=MP.kills;
+  const rows=[{n:(MP.name||'You')+' (you)',k:MP.kills,d:MP.deaths,a:war?mpMyArmy():0,x:MP.eliminated}];
+  for(const pid in MP.peers){const e=MP.peers[pid];rows.push({n:e.name||'Player',k:e.kl||0,d:e.dh||0,a:e.ar||0,x:e.el});}
   rows.sort((a,b)=>b.k-a.k);
-  $('mpBoard').innerHTML='<b>Room '+MP.code+'</b>'+(MP.mode==='coop'?' &nbsp; Wave '+wave:'')+rows.map(r=>'<div>'+r.n.replace(/[<>&]/g,'')+' &nbsp; <b>'+r.k+'</b> / '+r.d+'</div>').join('');
+  $('mpBoard').innerHTML='<b>Room '+MP.code+'</b>'+(MP.mode==='coop'?' &nbsp; Wave '+wave:'')+rows.map(r=>'<div>'+r.n.replace(/[<>&]/g,'')+' &nbsp; <b>'+r.k+'</b> / '+r.d+(war?' &nbsp; army '+(r.x?'out':r.a):'')+'</div>').join('');
 }
 async function mpLeave(){
   const was=MP.inMatch;
@@ -2091,7 +2121,7 @@ function startBattle(){
   if(pov)setPov(null);victSaid=false;reinfLeft=S.reinf==='on'?3+Math.min(3,wave-1):0;reinfT=50;camYaw=0;camPitch=0;state='play';prep=3.2;
   if(GOD){reinfLeft=0;prep=.5;godPeace=true;godTime=1;godTimeI=0;godTool=0;godCd=0;player.ghost=true;player.hideBody=true;godCam.x=0;godCam.z=70;godCam.y=G(0,70)+28;camPitch=-.45;}
   if(VILL){reinfLeft=0;prep=.3;vDay=1;vDayT=0;vCoins=20;vProsper=0;vCarry=null;vRaid=false;vWarned=false;}
-  if(MP.inMatch){if(!MP.host||MP.mode==='ffa')reinfLeft=0;prep=1.5;}
+  if(MP.inMatch){if(!MP.host||MP.mode!=='coop')reinfLeft=0;prep=1.5;}
   nightK=0;updateNight(0,0);if(!VILL)$('prompt').hidden=true;
   document.body.classList.toggle('god',GOD);document.body.classList.toggle('vill',VILL);buildHotbar();cmd=VILL?'hold':'charge';rallyCd=0;defeatT=0;victoryT=0;slowT=0;timeScale=1;
   $('menu').hidden=true;$('hud').hidden=false;buildVM();syncUI();
@@ -2181,7 +2211,7 @@ function update(dt){
   // end conditions
   if(state==='play'){
     if(defeatT>0){defeatT-=dt;if(defeatT<=0)showMenu('defeat');}
-    else if(prep<=0&&!GOD&&!VILL&&!(MP.inMatch&&(!MP.host||MP.mode==='ffa'))){let en=0;for(const u of units)if(u.team===1)en++;if(reinfLeft>0){reinfT-=dt;if(reinfT<=0||(en<=2&&reinfT<40)){spawnReinf();en=1;}else if(en===0)en=1;}
+    else if(prep<=0&&!GOD&&!VILL&&!(MP.inMatch&&(!MP.host||MP.mode!=='coop'))){let en=0;for(const u of units)if(u.team===1)en++;if(reinfLeft>0){reinfT-=dt;if(reinfT<=0||(en<=2&&reinfT<40)){spawnReinf();en=1;}else if(en===0)en=1;}
       if(en===0){if(!victSaid){victSaid=true;chorus('victory');}victoryT+=dt;if(victoryT>1.6){if(MP.inMatch){mpNextWave();}else{banner('Victory',2000);showMenu('victory');}}}}
   }
   if(slowT>0)slowT-=dt/Math.max(.2,timeScale);timeScale+=((slowT>0?.28:1)-timeScale)*Math.min(1,dt*9);
