@@ -129,7 +129,11 @@ body.vill #counts{display:none}
 #prompt[hidden]{display:none}
 body.touch #prompt{bottom:84px;font-size:17px}
 .villonly{display:none}
-body.vill .villonly{display:flex}
+body.vill .villonly,body.test .villonly{display:flex}
+#testHud{display:none;position:absolute;left:16px;top:62px;line-height:1.4;font-size:16px;max-width:310px}
+body.test #testHud{display:block}
+body.test #counts{display:none}
+#testHud small{opacity:.9}
 #bAct{right:36px;bottom:230px;width:74px;height:74px;font-size:19px}
 input,textarea{-webkit-user-select:text;user-select:text;touch-action:manipulation}
 #mpPanel{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(10,10,16,.78)}
@@ -174,6 +178,7 @@ body.touch #mpBoard{top:auto;bottom:8px;right:50%;transform:translateX(50%);font
   <canvas id="radar" width="150" height="150"></canvas>
   <div id="godTag" hidden></div>
   <div id="villHud"></div>
+  <div id="testHud"></div>
   <div id="mpBoard" hidden></div>
   <div id="prompt" hidden></div>
   <div id="flash"></div>
@@ -208,6 +213,18 @@ body.touch #mpBoard{top:auto;bottom:8px;right:50%;transform:translateX(50%);font
         <button data-v="war"><b>Warlord</b><small>Lead your army and fight in the battle yourself.</small></button>
         <button data-v="god"><b>God</b><small>You cannot die. Fly the battlefield and choose what happens: smite, spawn, heal, resurrect, dismember. Applies to your next battle.</small></button>
         <button data-v="village"><b>Village</b><small>Protect a village from night raids. Talk to villagers, run errands, earn coins, hire guards. Survive seven days. Applies to your next battle.</small></button>
+        <button data-v="test"><b>Test chamber</b><small>Solo sandbox: roped test subjects in a padded lab or a dungeon cell. Hit them, test finishers, untie them to fight back. Applies to your next battle.</small></button>
+      </div>
+    </fieldset>
+    <fieldset><legend>Test chamber place</legend>
+      <div class="seg" id="segTestPlace" role="group" aria-label="Test chamber place">
+        <button data-v="lab"><b>Lab</b><small>White padded test room.</small></button>
+        <button data-v="dungeon"><b>Dungeon</b><small>Dark stone cell with torches.</small></button>
+      </div>
+    </fieldset>
+    <fieldset><legend>Test subjects</legend>
+      <div class="seg" id="segTestN" role="group" aria-label="Test subjects">
+        <button data-v="1"><b>1</b></button><button data-v="2"><b>2</b></button><button data-v="3"><b>3</b></button><button data-v="4"><b>4</b></button><button data-v="5"><b>5</b></button>
       </div>
     </fieldset>
     <fieldset><legend>Gore level</legend>
@@ -291,6 +308,7 @@ body.touch #mpBoard{top:auto;bottom:8px;right:50%;transform:translateX(50%);font
       <div><kbd>H</kbd>Cycle graphics quality</div>
       <div><kbd>E</kbd>Village mode: talk to villagers, use the well, woodpile, stall and town board</div>
       <div><kbd>God mode</kbd> WASD, Space and Q E to fly, click for a power, wheel to switch, T time, N war or peace</div>
+      <div><kbd>Test chamber</kbd> E untie or tie the nearest subject, X untie all, C tie all, Z reset, [ ] pick the finisher to test</div>
       <div><kbd>J</kbd>Cycle soldier voices, <kbd>K</kbd> who speaks</div>
       <div><kbd>R</kbd>Mount or dismount your horse, <kbd>0</kbd> lance</div>
     </div>
@@ -342,8 +360,8 @@ const angDiff=(a,b)=>{let d=(b-a)%(Math.PI*2);if(d>Math.PI)d-=Math.PI*2;if(d<-Ma
 
 /* --------------------------------------------------------------- settings */
 const TOUCH_DEV=('ontouchstart' in window||navigator.maxTouchPoints>0)&&!window.matchMedia('(pointer:fine)').matches;
-const S={gore:0,cam:'tp',army:TOUCH_DEV?15:30,ctl:TOUCH_DEV?'touch':'kb',gfx:TOUCH_DEV?'std':'high',voice:'full',pg:'m',scope:'near',reinf:'on',mode:'war',fin:'on'};
-try{const v=JSON.parse(localStorage.getItem('warlord-v1')||'{}');if(v.gore!=null)S.gore=v.gore;if(v.cam)S.cam=v.cam;if(v.army)S.army=v.army;if(v.ctl)S.ctl=v.ctl;if(v.gfx)S.gfx=v.gfx;if(v.voice)S.voice=v.voice;if(v.pg)S.pg=v.pg;if(v.scope)S.scope=v.scope;if(v.reinf)S.reinf=v.reinf;if(v.mode)S.mode=v.mode;if(v.fin)S.fin=v.fin;}catch(e){}
+const S={gore:0,cam:'tp',army:TOUCH_DEV?15:30,ctl:TOUCH_DEV?'touch':'kb',gfx:TOUCH_DEV?'std':'high',voice:'full',pg:'m',scope:'near',reinf:'on',mode:'war',fin:'on',testPlace:'lab',testN:3};
+try{const v=JSON.parse(localStorage.getItem('warlord-v1')||'{}');if(v.gore!=null)S.gore=v.gore;if(v.cam)S.cam=v.cam;if(v.army)S.army=v.army;if(v.ctl)S.ctl=v.ctl;if(v.gfx)S.gfx=v.gfx;if(v.voice)S.voice=v.voice;if(v.pg)S.pg=v.pg;if(v.scope)S.scope=v.scope;if(v.reinf)S.reinf=v.reinf;if(v.mode)S.mode=v.mode;if(v.fin)S.fin=v.fin;if(v.testPlace)S.testPlace=v.testPlace;if(v.testN)S.testN=v.testN;}catch(e){}
 function saveS(){try{localStorage.setItem('warlord-v1',JSON.stringify(S));}catch(e){}}
 const GORE_NAMES=['Normal','Brutal','Sadistic'];
 
@@ -424,11 +442,13 @@ function baseH(x,z){
     +5*Math.exp(-((x-38)*(x-38)+(z+22)*(z+22))/1100)+4*Math.exp(-((x+48)*(x+48)+(z-30)*(z-30))/900)+3.5*Math.exp(-((x+10)*(x+10)+(z+60)*(z+60))/700);
 }
 function G(x,z){
+  if(ROOM.on&&Math.abs(x-ROOM.cx)<ROOM.hx+1.5&&Math.abs(z-ROOM.cz)<ROOM.hz+1.5)return ROOM.y;
   const az=Math.abs(z),cm=Math.exp(-((az-70)/30)*((az-70)/30));let h=baseH(x,z)*(1-.85*cm);
   for(let i=0;i<3;i++){const p=PONDS[i],dx=x-p[0],dz=z-p[1],d2=dx*dx+dz*dz,r2=p[2]*p[2];h=h*(1-Math.exp(-d2/(r2*6)))-3.2*Math.exp(-d2/r2);}
   return h;
 }
 const OBST=[],ANIM=[],INTERACT=[],HOUSES=[];
+const ROOM={on:false,cx:300,cz:300,hx:12,hz:12,H:5.5,y:0,g:null,obst:[],flames:[],subjects:[],kind:'lab'};
 (()=>{
   const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');x.fillStyle='#55713a';x.fillRect(0,0,256,256);
   for(let i=0;i<3500;i++){x.fillStyle=pick(['#4a6733','#617f40','#5a7638','#6a8a45','#47602f','#7a7a4a']);x.fillRect(Math.random()*256,Math.random()*256,rnd(1,3),rnd(1,4));}
@@ -719,7 +739,7 @@ function updateHorse(s,dt){
   g.position.y+=Math.abs(Math.sin(s.walk*.9))*.05*s.spd;
 }
 function toggleMount(){
-  const p=player;if(!p||p.dead||pov||GOD)return;
+  const p=player;if(!p||p.dead||pov||GOD||TEST)return;
   if(p.mount){p.mount=false;removeHorse(p);banner('Dismounted',800);}
   else{p.mount=true;attachHorse(p);banner('Mounted. Ride them down!',1200);sfx('neigh');}
   p._h=false;p.dirty=true;
@@ -1077,7 +1097,7 @@ function addCaption(e,text,last){
 }
 function say(e,text,o){
   o=o||{};if(!e||(e.dead&&!o.last))return;if(!o.force&&TIME-(e.lastSpeak||-9)<(o.cool||3.5))return;e.lastSpeak=TIME;
-  if((pov&&(o.always||e===pov||Math.hypot(e.x-pov.x,e.z-pov.z)<14))||(VILL&&!pov&&player&&(o.always||Math.hypot(e.x-player.x,e.z-player.z)<10)))addCaption(e,text,!!o.last);
+  if((pov&&(o.always||e===pov||Math.hypot(e.x-pov.x,e.z-pov.z)<14))||((VILL||TEST)&&!pov&&player&&(o.always||Math.hypot(e.x-player.x,e.z-player.z)<10)))addCaption(e,text,!!o.last);
   const v=vol(e);if((v<.06&&e!==pov)||S.voice==='off'||muted)return;
   if(S.voice==='full'&&speechOK()){if(S.scope==='pov'&&pov&&e!==pov&&!e.isPlayer)return;const prio=!!(o.always||o.last||e===pov||e.isPlayer);if(!prio&&v<.3)return;if(speakReal(e,text,!!o.last,prio,e===pov?1:v))return;}
   babble(e,text,v,!!o.last);
@@ -1150,7 +1170,7 @@ const HELP=['Help... please...','Anyone... help me...','Medic... medic...','Do n
 const _dA=new Float32Array(45),_dB=new Float32Array(45);
 function lastText(e){return e.isPlayer?pick(LINES.lastP):pick(LINES.last.concat(e.g==='f'?LINES.lastF:LINES.lastM));}
 function tryDying(e,dmg,dx,dz,kb,w,o){
-  if(e.isPlayer||e.mount||e.dying||o.expl||o.head||prep>0)return false;
+  if(e.isPlayer||e.mount||e.dying||e.tied||o.expl||o.head||prep>0)return false;
   if(-e.hp>45||Object.keys(e.cut).length)return false;
   let n=0;for(const u of units)if(u.dying)n++;if(n>=5)return false;
   const r=Math.random(),type=r<.05?'crawl':r<.10?'kneel':null;if(!type)return false;
@@ -1290,6 +1310,8 @@ function hitUnit(e,dmg,dx,dz,kb,w,o){
   if(e.dead||e.hidden||e.fin||e.finV)return;if(GOD&&e.isPlayer)return;o=o||{};if(MP.inMatch){if(e.puppet){mpHitPuppet(e,dmg,dx,dz,kb,w,o);return;}if(e.remote){mpHitRemote(e,dmg,dx,dz,kb,w,o);return;}}if(e.dying){const dy=e.dying;e.dying=null;e.hp=-1;e.kvx+=dx*kb;e.kvz+=dz*kb;killUnit(e,dmg,dx,dz,kb,w,Object.assign({},o,{said:dy.said}));return;}if(e.armorRed){dmg*=1-e.armorRed;if(e.armorRed>=.4&&!o.expl)sfx('clang',vol(e)*.5);}
   if(e.isPlayer){dmg*=.8;if(e.block){dmg*=.25;kb*=.4;sfx('clang');}}
   e.hp-=dmg;e.lastHit=TIME;e.kvx+=dx*kb;e.kvz+=dz*kb;if(e.hp>0)hitVoice(e);
+  if(e.tied){e.pvx+=dx*kb*.25;e.pvz+=dz*kb*.25;e.flinch=.35;}
+  if(TEST&&e.num)testLog(e,dmg,w);
   if(!e.isPlayer){e.stun=Math.max(e.stun,.16+kb*.012);e.atkT=-1;}
   const P=e.P,hx=P[CHEST*3],hy=P[CHEST*3+1],hz=P[CHEST*3+2],g=S.gore;
   if(e.hp>0||g===0)bloodBurst(hx,hy,hz,dx,dz,[5,14,24][g]+dmg*[.12,.4,.7][g]);
@@ -1299,6 +1321,8 @@ function hitUnit(e,dmg,dx,dz,kb,w,o){
 }
 function killUnit(e,dmg,dx,dz,kb,w,o){
   if(MP.inMatch&&(MP.mode==='war'||(MP.host&&MP.mode==='coop'))&&!o.fromNet&&!e.remote&&!e.puppet&&!e.isPlayer)mpSend({t:'kill',o:MP.id,id:e.id,by:e.lastHitBy||'',dx,dz,kb,wi:Math.max(0,WEAPONS.indexOf(w))});
+  if(e.tied){e.tied=false;removeRope(e);}
+  if(e.label&&e.num){scene.remove(e.label);e.label=null;}
   e.dead=true;e._far=false;e.deadT=0;e.asleep=false;e.hideBody=false;const i=units.indexOf(e);if(i>=0)units.splice(i,1);corpses.push(e);
   if(e.team===1&&!e.remote)kills++;if(VILL){if(e.civ){vProsper=Math.max(0,vProsper-15);banner('A villager has fallen!',1500);}else if(e.team===1)vCoins+=5;}
   if(e.horse){bloodBurst(e.x,e.y+1,e.z,dx,dz,S.gore>=1?36:10);sfx('neigh',vol(e));if(S.gore>=1)makePool(e.x,e.z,S.gore===2?2.6:1.6);}
@@ -1307,7 +1331,7 @@ function killUnit(e,dmg,dx,dz,kb,w,o){
   goreOnKill(e,dmg,dx,dz,w,o,-e.hp);deathSpeech(e,o);if(!o.calm&&!e.noWeapon&&e.wMesh&&Math.random()<.4)dropWeapon(e,dx,dz);
   sfx(e.isPlayer?'hurt':'hit',vol(e));
   while(corpses.length>(S.army>=80?160:S.army>=50?120:90)){removeUnit(corpses.shift());}
-  if(e.isPlayer){setPov(null);if(MP.inMatch)mpOnLocalDeath();else{defeatT=2.6;banner('You have fallen',2600);}}
+  if(e.isPlayer){setPov(null);if(MP.inMatch)mpOnLocalDeath();else if(TEST){TS.respT=2.2;banner('You were slain. Respawning...',1800);}else{defeatT=2.6;banner('You have fallen',2600);}}
 }
 function rayHit(ox,oy,oz,dx,dy,dz,maxT,team){
   let best=null,bt=maxT,head=false;
@@ -1395,8 +1419,8 @@ function aiUpdate(s,dt){
 function integrate(s,dt){
   const wf=s.gy<-.9?.55:1;
   s.x+=(s.vx+s.kvx)*dt*wf;s.z+=(s.vz+s.kvz)*dt*wf;const kd=Math.exp(-5*dt);s.kvx*=kd;s.kvz*=kd;
-  s.x=clamp(s.x,-135,135);s.z=clamp(s.z,-140,140);
-  for(const o of OBST){const dx=s.x-o.x;if(dx>o.r+.6||dx<-o.r-.6)continue;const dz=s.z-o.z,d2=dx*dx+dz*dz,rr=o.r+.35;
+  if(ROOM.on){s.x=clamp(s.x,ROOM.cx-ROOM.hx+.7,ROOM.cx+ROOM.hx-.7);s.z=clamp(s.z,ROOM.cz-ROOM.hz+.7,ROOM.cz+ROOM.hz-.7);}else{s.x=clamp(s.x,-135,135);s.z=clamp(s.z,-140,140);}
+  for(const o of (ROOM.on?ROOM.obst:OBST)){const dx=s.x-o.x;if(dx>o.r+.6||dx<-o.r-.6)continue;const dz=s.z-o.z,d2=dx*dx+dz*dz,rr=o.r+.35;
     if(d2<rr*rr&&d2>1e-6){const d=Math.sqrt(d2);s.x=o.x+dx/d*rr;s.z=o.z+dz/d*rr;s.ox=dx/d;s.oz=dz/d;s.blk=.4;}}
   const gy=G(s.x,s.z);s.gy=gy;s.vy-=26*dt;s.y+=s.vy*dt;
   if(s.y<=gy||(s.vy<=0&&s.y-gy<.3)){s.y=gy;s.vy=0;}
@@ -1420,8 +1444,8 @@ addEventListener('keydown',e=>{
     case'KeyV':S.cam=S.cam==='tp'?'fp':'tp';saveS();syncUI();break;
     case'KeyG':S.gore=(S.gore+1)%3;saveS();syncUI();banner('Gore: '+GORE_NAMES[S.gore],1100);break;
     case'KeyM':muted=!muted;banner(muted?'Sound off':'Sound on',900);break;
-    case'KeyZ':setCmd('charge');break;case'KeyX':setCmd('hold');break;case'KeyC':setCmd('follow');break;
-    case'KeyF':rally();break;case'KeyP':pauseGame();break;case'KeyY':togglePov();break;case'KeyR':toggleMount();break;case'KeyT':if(GOD)godTimeCycle();break;case'KeyN':if(GOD)godPeaceToggle();break;case'KeyK':S.scope=S.scope==='near'?'pov':'near';saveS();syncUI();banner(S.scope==='pov'?'Hearing: the soldier you watch':'Hearing: soldiers near you',1200);break;case'KeyJ':S.voice=S.voice==='full'?'synth':S.voice==='synth'?'off':'full';saveS();syncUI();banner('Voices: '+({full:'Real voices',synth:'Synth only',off:'Silent'})[S.voice],1100);if(S.voice!=='full'){try{window.speechSynthesis&&window.speechSynthesis.cancel();}catch(_){}}break;case'KeyQ':if(pov)cyclePov(-1);break;case'KeyE':if(pov)cyclePov(1);else if(VILL)interact();break;case'KeyH':S.gfx=S.gfx==='std'?'high':S.gfx==='high'?'ultra':'std';saveS();syncUI();banner('Graphics: '+GFX_NAMES[S.gfx],1100);break;
+    case'KeyZ':if(TEST)testReset();else setCmd('charge');break;case'KeyX':if(TEST)testUntieAll(true);else setCmd('hold');break;case'KeyC':if(TEST)testUntieAll(false);else setCmd('follow');break;
+    case'KeyF':rally();break;case'KeyP':pauseGame();break;case'KeyY':togglePov();break;case'KeyR':toggleMount();break;case'BracketLeft':if(TEST)testFin=testFin<0?2:testFin-1;break;case'BracketRight':if(TEST)testFin=testFin>=2?-1:testFin+1;break;case'KeyT':if(GOD)godTimeCycle();break;case'KeyN':if(GOD)godPeaceToggle();break;case'KeyK':S.scope=S.scope==='near'?'pov':'near';saveS();syncUI();banner(S.scope==='pov'?'Hearing: the soldier you watch':'Hearing: soldiers near you',1200);break;case'KeyJ':S.voice=S.voice==='full'?'synth':S.voice==='synth'?'off':'full';saveS();syncUI();banner('Voices: '+({full:'Real voices',synth:'Synth only',off:'Silent'})[S.voice],1100);if(S.voice!=='full'){try{window.speechSynthesis&&window.speechSynthesis.cancel();}catch(_){}}break;case'KeyQ':if(pov)cyclePov(-1);break;case'KeyE':if(pov)cyclePov(1);else if(VILL||TEST)interact();break;case'KeyH':S.gfx=S.gfx==='std'?'high':S.gfx==='high'?'ultra':'std';saveS();syncUI();banner('Graphics: '+GFX_NAMES[S.gfx],1100);break;
   }
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -1742,6 +1766,7 @@ function nearestInteract(){
   return best;
 }
 function interact(){
+  if(TEST){testInteract();return;}
   if(!VILL||!player||player.dead||pov)return;const t=nearestInteract();if(!t)return;
   if(t.kind==='obj'){
     const o=t.o;
@@ -1794,7 +1819,7 @@ function updateVillHud(){
 /* ------------------------------------------------------- online multiplayer */
 // Optional: put your Supabase details here so players do not have to type them.
 // The anon key is meant to be public. NEVER put a service_role key in this file.
-const MP_CONFIG={url:'https://ikluycqmvztbsfysazxl.supabase.co/rest/v1/',key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrbHV5Y3Ftdnp0YnNmeXNhenhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTM5NTksImV4cCI6MjEwNzcyOTk1OX0.9E0GCoIiCHAbi1JguVHt4W3GjLPK-5hpWxkyG1uq-Uw'};
+const MP_CONFIG={url:'',key:''};
 const MP={on:false,inMatch:false,host:false,id:'p'+Math.random().toString(36).slice(2,9),name:'',sb:null,ch:null,code:'',mode:'coop',pendingMode:'coop',
   roster:{},peers:{},units:{},spawnQ:[],kills:0,deaths:0,tP:0,tS:0,tH:0,respawnT:0,armyN:30,eliminated:false,t:0,tE:1,ending:false,endT:0,cfg:{url:MP_CONFIG.url,key:MP_CONFIG.key}};
 try{const v=JSON.parse(localStorage.getItem('warlord-mp')||'{}');if(v.url)MP.cfg.url=v.url;if(v.key)MP.cfg.key=v.key;if(v.name)MP.name=v.name;}catch(e){}
@@ -2109,9 +2134,9 @@ function tryFinisher(v,dmg,dx,dz,kb,w,o){
   if(a.isPlayer&&(GOD||pov))return false;
   const list=FINS[a.wi];if(!list)return false;
   if(Math.hypot(v.x-a.x,v.z-a.z)>5)return false;
-  if(a.isPlayer){if(TIME-lastPlayerFin<2.5||Math.random()>.4)return false;}
+  if(a.isPlayer){if(!TEST&&(TIME-lastPlayerFin<2.5||Math.random()>.4))return false;}
   else{let n=0;for(const u of units)if(u.fin&&!u.isPlayer)n++;if(n>=3||Math.random()>.08)return false;}
-  startFinisher(a,v,pick(list),{dmg,dx,dz,kb,w,o});return true;
+  startFinisher(a,v,(TEST&&a.isPlayer&&testFin>=0)?list[testFin%list.length]:pick(list),{dmg,dx,dz,kb,w,o});return true;
 }
 function startFinisher(a,v,def,args){
   const dx=v.x-a.x,dz=v.z-a.z,d=Math.hypot(dx,dz)||1,ux=dx/d,uz=dz/d;
@@ -2176,6 +2201,151 @@ function finCamera(f,nx,ny,nz){
   camera.lookAt(lerp(nx,mx,w),lerp(ny,my,w),lerp(nz,mz,w));
 }
 
+/* ------------------------------------------------------------- test chamber */
+let TEST=false,testFin=-1;
+const TS={last:'',total:0,hits:0,respT:0};
+const matRope=M(0xb89a6a);
+const UNTIE_LINES=['You will regret this!','Finally free!','Now it is my turn!','Let me at you!'],TIE_LINES=['No! Let me go!','Not again...','Please, stop!'];
+function texLab(rx,ry){
+  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.fillStyle='#f3f3f0';x.fillRect(0,0,128,128);
+  x.strokeStyle='#d9d9d4';x.lineWidth=3;x.strokeRect(2,2,124,124);x.fillStyle='#e2e2dc';
+  for(const[px,py]of[[2,2],[126,2],[2,126],[126,126],[64,64]]){x.beginPath();x.arc(px,py,7,0,6.283);x.fill();}
+  x.strokeStyle='#e4e4df';x.lineWidth=2;x.beginPath();for(const[px,py]of[[2,2],[126,2],[2,126],[126,126]]){x.moveTo(64,64);x.lineTo(px,py);}x.stroke();
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);return t;
+}
+function texBrick(rx,ry){
+  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');x.fillStyle='#262320';x.fillRect(0,0,128,128);
+  for(let r=0;r<4;r++){const off=r%2?16:0;for(let b=-1;b<4;b++){x.fillStyle=pick(['#4a463f','#55504a','#403c36','#5a554d','#3a3732']);x.fillRect(b*32+off+2,r*32+2,28,28);}}
+  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);return t;
+}
+function roomLighting(){
+  const lab=ROOM.kind==='lab',c=new THREE.Color(lab?0xe6ecf2:0x0b0907);
+  scene.background=c;scene.fog.color.copy(c);hemi.intensity=lab?1.2:.62;sun.intensity=lab?.5:.22;
+}
+function buildRoom(kind){
+  let my=0;for(let x=-ROOM.hx-2;x<=ROOM.hx+2;x+=2)for(let z=-ROOM.hz-2;z<=ROOM.hz+2;z+=2)my=Math.max(my,G(ROOM.cx+x,ROOM.cz+z));
+  ROOM.y=my+.05;ROOM.kind=kind;ROOM.on=true;ROOM.obst=[];ROOM.flames=[];
+  const g=new THREE.Group(),lab=kind==='lab',hx=ROOM.hx,hz=ROOM.hz,H=ROOM.H,cx=ROOM.cx,cz=ROOM.cz,y=ROOM.y;
+  const mk=(rx,ry)=>new THREE.MeshLambertMaterial({map:lab?texLab(rx,ry):texBrick(rx*.7,ry*.9),emissive:lab?0x242424:0x000000});
+  const add=(geo,mat,x,yy,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,yy,z);m.receiveShadow=true;g.add(m);return m;};
+  const wallM=mk(12,4.25),flatM=mk(12,12);
+  add(new THREE.BoxGeometry(hx*2+2,6,hz*2+2),flatM,cx,y-3,cz);
+  add(new THREE.BoxGeometry(hx*2+2,1,hz*2+2),flatM,cx,y+H+.5,cz);
+  add(new THREE.BoxGeometry(hx*2+2,H+3,1),wallM,cx,y+(H-3)/2,cz-hz-.5);add(new THREE.BoxGeometry(hx*2+2,H+3,1),wallM,cx,y+(H-3)/2,cz+hz+.5);
+  add(new THREE.BoxGeometry(1,H+3,hz*2+2),wallM,cx-hx-.5,y+(H-3)/2,cz);add(new THREE.BoxGeometry(1,H+3,hz*2+2),wallM,cx+hx+.5,y+(H-3)/2,cz);
+  const glow=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
+  if(lab){
+    for(const lx of[-6,6])for(const lz of[-6,6])add(new THREE.BoxGeometry(3,.1,3),glow,cx+lx,y+H-.06,cz+lz);
+    add(new THREE.BoxGeometry(9,2.2,.1),new THREE.MeshBasicMaterial({color:0x1a2a3a}),cx,y+3,cz-hz+.08);
+    add(new THREE.BoxGeometry(9.4,.2,.14),new THREE.MeshLambertMaterial({color:0x888c92}),cx,y+4.15,cz-hz+.08);add(new THREE.BoxGeometry(9.4,.2,.14),new THREE.MeshLambertMaterial({color:0x888c92}),cx,y+1.85,cz-hz+.08);
+    add(new THREE.BoxGeometry(2,3.4,.12),new THREE.MeshLambertMaterial({color:0xd8dadd}),cx+hx-.1,y+1.7,cz+4).rotation.y=Math.PI/2;
+  }else{
+    const stone=M(0x6a655d),wood=M(0x5a3d22),iron=M(0x2a2a2e);
+    for(const[px,pz]of[[-7,-7],[7,-7],[-7,7],[7,7]]){add(new THREE.CylinderGeometry(.7,.85,H,10),stone,cx+px,y+H/2,cz+pz);ROOM.obst.push({x:cx+px,z:cz+pz,r:.95});}
+    const tp=[[-8,-hz+.4,0],[0,-hz+.4,0],[8,-hz+.4,0],[-8,hz-.4,Math.PI],[8,hz-.4,Math.PI],[-hx+.4,0,Math.PI/2],[hx-.4,0,-Math.PI/2]];
+    for(const[tx,tz]of tp){add(new THREE.CylinderGeometry(.07,.07,.7,6),wood,cx+tx,y+3,cz+tz);
+      const fl=new THREE.Mesh(new THREE.ConeGeometry(.17,.45,6),new THREE.MeshBasicMaterial({color:0xffa030,toneMapped:false}));fl.position.set(cx+tx,y+3.5,cz+tz);g.add(fl);ROOM.flames.push({m:fl,p:rnd(0,6)});}
+    for(let i=0;i<6;i++)add(new THREE.CylinderGeometry(.03,.03,rnd(1.5,3),5),iron,cx+rnd(-hx+1,hx-1),y+H-1,cz+(i%2?-hz+.3:hz-.3));
+    add(new THREE.BoxGeometry(2.4,3.6,.15),wood,cx,y+1.8,cz+hz-.1);
+    for(const bx of[-.9,0,.9])add(new THREE.BoxGeometry(.12,3.6,.18),iron,cx+bx,y+1.8,cz+hz-.18);
+  }
+  scene.add(g);ROOM.g=g;
+}
+function attachRope(u){
+  u.rp=new Float32Array(9);u.ropeM=[0,1].map(()=>{const m=new THREE.Mesh(segGeo,matRope);scene.add(m);u.meshes.push(m);return m;});
+}
+function removeRope(u){
+  if(!u.ropeM)return;for(const m of u.ropeM){scene.remove(m);const i=u.meshes.indexOf(m);if(i>=0)u.meshes.splice(i,1);}u.ropeM=null;
+}
+function poseTied(s){
+  const P=s.P,lift=.34,dr=s.flinch>0?Math.sin(TIME*40)*.03:0,sw=Math.sin(TIME*.9+s.id)*.04,nod=.12+(s.hp<s.maxhp*.5?.12:0);
+  loc(s,0,.9+lift,0,PELV);loc(s,0,1.45+lift,.02+nod*.6,CHEST);loc(s,0,1.66+lift-nod*.5,.12+nod,HEAD);
+  loc(s,-.23,1.41+lift,.02,SHL);loc(s,.23,1.41+lift,.02,SHR);loc(s,-.12,.9+lift,0,HIPL);loc(s,.12,.9+lift,0,HIPR);
+  loc(s,-.13,.06+lift*.55,-.05+sw,FTL);loc(s,.13,.06+lift*.55,-.05-sw,FTR);
+  ldir(s,0,.25,1,_p);ik(P,HIPL,KNL,FTL,.46,.46,_p.x,_p.y,_p.z);ik(P,HIPR,KNR,FTR,.46,.46,_p.x,_p.y,_p.z);
+  loc(s,-.1+dr,2.3,0,HAL);loc(s,.1+dr,2.3,0,HAR);
+  ldir(s,.8,.3,0,_p);ik(P,SHR,ELR,HAR,.3,.32,_p.x,_p.y,_p.z);ldir(s,-.8,.3,0,_p);ik(P,SHL,ELL,HAL,.3,.32,_p.x,_p.y,_p.z);
+  ldir(s,0,-1,0,s.wd);
+  if(s.ropeM){const rp=s.rp;rp[0]=s.ax;rp[1]=ROOM.y+ROOM.H-.3;rp[2]=s.az;
+    rp[3]=P[HAL*3];rp[4]=P[HAL*3+1];rp[5]=P[HAL*3+2];rp[6]=P[HAR*3];rp[7]=P[HAR*3+1];rp[8]=P[HAR*3+2];
+    setSeg(s.ropeM[0],rp,0,1,.025);setSeg(s.ropeM[1],rp,0,2,.025);}
+}
+function tiedUpdate(s,dt){
+  s.pvx+=(-s.pdx*18-s.pvx*2.2)*dt;s.pvz+=(-s.pdz*18-s.pvz*2.2)*dt;s.pdx+=s.pvx*dt;s.pdz+=s.pvz*dt;
+  s.x=s.ax+s.pdx;s.z=s.az+s.pdz;s.vx=0;s.vz=0;s.flinch=Math.max(0,s.flinch-dt);s.atkT=-1;
+  poseTied(s);
+}
+function nearestSubject(){
+  if(!player)return null;let b=null,bd=3.2;
+  for(const u of ROOM.subjects){if(u.dead||u.fin||u.finV)continue;const d=Math.hypot(u.x-player.x,u.z-player.z);if(d<bd){bd=d;b=u;}}return b;
+}
+function untieSubject(u){
+  if(!u.tied)return;u.tied=false;u.noWeapon=false;removeRope(u);u.stun=.6;u.target=null;u.tt=0;u.atkT=-1;u.cd=1;
+  say(u,pick(UNTIE_LINES),{force:true,always:true});
+}
+function tieSubject(u){
+  if(u.tied||u.dead)return;u.tied=true;u.noWeapon=true;u.hp=u.maxhp;u.target=null;u.atkT=-1;u.stun=0;u.x=u.ax;u.z=u.az;u.pdx=u.pdz=u.pvx=u.pvz=0;u.flinch=0;
+  attachRope(u);say(u,pick(TIE_LINES),{force:true,always:true});
+}
+function testInteract(){
+  if(!player||player.dead)return;const u=nearestSubject();if(!u)return;
+  if(u.tied){untieSubject(u);banner('Untied subject '+u.num,900);}else{tieSubject(u);banner('Tied up subject '+u.num,900);}
+}
+function testUntieAll(untie){
+  for(const u of ROOM.subjects){if(u.dead||u.fin||u.finV)continue;if(untie)untieSubject(u);else tieSubject(u);}
+  banner(untie?'All subjects untied':'All subjects tied up',1000);
+}
+function testLog(e,dmg,w){TS.last=Math.round(dmg)+' damage with '+(w&&w.n?w.n:'weapon')+' on #'+e.num;TS.total+=dmg;TS.hits++;}
+function spawnTest(){
+  buildRoom(S.testPlace||'lab');
+  const pts={1:[[0,0]],2:[[-4,0],[4,0]],3:[[-5,2],[5,2],[0,-4]],4:[[-4,-4],[4,-4],[-4,4],[4,4]],5:[[0,0],[-6,-6],[6,-6],[-6,6],[6,6]]}[clamp(S.testN||3,1,5)];
+  ROOM.subjects=[];TS.last='';TS.total=0;TS.hits=0;TS.respT=0;
+  pts.forEach((pt,i)=>{
+    const x=ROOM.cx+pt[0],z=ROOM.cz+pt[1],u=makeUnit(1,x,z,pick([0,1,2,3,5]),{hp:120,f:i%2===0});
+    u.tied=true;u.noWeapon=true;u.ax=x;u.az=z;u.pdx=u.pdz=u.pvx=u.pvz=0;u.flinch=0;u.num=i+1;attachRope(u);
+    u.label=mpLabel('#'+(i+1),'#ffffff');scene.add(u.label);u.meshes.push(u.label);ROOM.subjects.push(u);
+    const ring=new THREE.Mesh((()=>{const gg=new THREE.RingGeometry(.9,1.05,32);gg.rotateX(-Math.PI/2);return gg;})(),new THREE.MeshBasicMaterial({color:ROOM.kind==='lab'?0xf2c200:0x7a1a12,toneMapped:false}));
+    ring.position.set(x,ROOM.y+.02,z);ROOM.g.add(ring);
+  });
+  const wi=player?player.wi:0;
+  player=makeUnit(0,ROOM.cx,ROOM.cz+8,wi,{player:true,hp:200,f:S.pg==='f',armor:'mail'});player.cdw=0;
+}
+function testReset(){
+  if(!TEST)return;
+  for(const u of units.slice()){if(u.isPlayer)continue;const i=units.indexOf(u);if(i>=0)units.splice(i,1);removeUnit(u);}
+  for(const c of corpses)removeUnit(c);corpses.length=0;
+  for(const p of pools)scene.remove(p.m);pools.length=0;for(const p of props)scene.remove(p.g);props.length=0;dropW.length=0;
+  for(const r of ropes)for(const m of r.ms)scene.remove(m);ropes.length=0;
+  PA.forEach(p=>p.a=false);SA.forEach(p=>p.a=false);for(let i=0;i<ND;i++)decalIM.setMatrixAt(i,ZERO);decalIM.instanceMatrix.needsUpdate=true;dI=0;
+  if(ROOM.g){const keep=[];ROOM.g.children.forEach(c=>{if(c.geometry&&c.geometry.type==='RingGeometry')keep.push(c);});keep.forEach(c=>ROOM.g.remove(c));}
+  const pts={1:[[0,0]],2:[[-4,0],[4,0]],3:[[-5,2],[5,2],[0,-4]],4:[[-4,-4],[4,-4],[-4,4],[4,4]],5:[[0,0],[-6,-6],[6,-6],[-6,6],[6,6]]}[clamp(S.testN||3,1,5)];
+  ROOM.subjects=[];
+  pts.forEach((pt,i)=>{
+    const x=ROOM.cx+pt[0],z=ROOM.cz+pt[1],u=makeUnit(1,x,z,pick([0,1,2,3,5]),{hp:120,f:i%2===0});
+    u.tied=true;u.noWeapon=true;u.ax=x;u.az=z;u.pdx=u.pdz=u.pvx=u.pvz=0;u.flinch=0;u.num=i+1;attachRope(u);
+    u.label=mpLabel('#'+(i+1),'#ffffff');scene.add(u.label);u.meshes.push(u.label);ROOM.subjects.push(u);
+    const ring=new THREE.Mesh((()=>{const gg=new THREE.RingGeometry(.9,1.05,32);gg.rotateX(-Math.PI/2);return gg;})(),new THREE.MeshBasicMaterial({color:ROOM.kind==='lab'?0xf2c200:0x7a1a12,toneMapped:false}));
+    ring.position.set(x,ROOM.y+.02,z);ROOM.g.add(ring);
+  });
+  if(player&&!player.dead)player.hp=player.maxhp;TS.last='';TS.total=0;TS.hits=0;banner('Room reset',900);
+}
+function testRespawnPlayer(){
+  const wi=player?player.wi:0;
+  player=makeUnit(0,ROOM.cx,ROOM.cz+8,wi,{player:true,hp:200,f:S.pg==='f',armor:'mail'});player.cdw=0;camYaw=0;camPitch=0;buildVM();syncUI();
+}
+function testTick(dt){
+  for(const f of ROOM.flames){f.m.scale.y=1+Math.sin(TIME*11+f.p)*.25;f.m.scale.x=f.m.scale.z=1+Math.sin(TIME*9+f.p)*.12;}
+  for(const u of ROOM.subjects)if(u.label&&!u.dead)u.label.position.set(u.x,u.y+2.75,u.z);
+  if(TS.respT>0){TS.respT-=dt;if(TS.respT<=0)testRespawnPlayer();}
+}
+function updateTestHud(){
+  let tied=0,hostile=0,down=0;for(const u of ROOM.subjects){if(u.dead)down++;else if(u.tied)tied++;else hostile++;}
+  const fn=testFin<0?'random':'#'+(testFin+1);
+  $('testHud').innerHTML='<b>Test chamber</b> ('+(ROOM.kind==='lab'?'Lab':'Dungeon')+')<br>Subjects: '+tied+' tied, '+hostile+' hostile, '+down+' down<br>Finisher: '+(S.fin==='off'?'off':'always, '+fn)+'<br>Damage dealt: <b>'+Math.round(TS.total)+'</b> in '+TS.hits+' hits'+(TS.last?'<br><small>Last: '+TS.last+'</small>':'')+'<br><small>E untie or tie, X untie all, C tie all, Z reset, [ ] finisher</small>';
+  const u=nearestSubject(),pr=$('prompt'),key=S.ctl==='touch'?'Act':'E';
+  if(u&&!pov&&state==='play'){pr.hidden=false;pr.textContent='['+key+'] '+(u.tied?'Untie':'Tie up')+' subject '+u.num+', '+u.name;}else pr.hidden=true;
+}
+
 const vm=new THREE.Group();camera.add(vm);let vmW=null;
 const vmArm=new THREE.Mesh(new THREE.CylinderGeometry(.045,.05,.55,6),matSteel);vmArm.position.set(0,-.12,.28);vmArm.rotation.x=1.98;
 const vmHand=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),matSkin);
@@ -2213,6 +2383,7 @@ function spawnSide(team,n,hp,z0,z1){
     for(let j=0;j<k;j++,i++){const lo=loadout(i,hp);makeUnit(team,clamp(cx+rnd(-6,6),-125,125),clamp(sg*(cz+rnd(-6,6)),-132,132),lo.wi,{hp:lo.hp,f:(fi++)%2===0,armor:lo.armor,mount:lo.mount});}}
 }
 function spawnArmies(){
+  if(TEST){spawnTest();return;}
   if(VILL){spawnVillage();return;}
   if(MP.inMatch){mpSpawn();return;}
   const n=S.army,ne=Math.min(220,Math.round(n*(1+(wave-1)*.25)));
@@ -2233,15 +2404,16 @@ function clearAll(){
   PA.forEach(p=>p.a=false);SA.forEach(p=>p.a=false);for(const p of props)scene.remove(p.g);props.length=0;dropW.length=0;for(const b of bolts)for(const m of b.ms)scene.remove(m);bolts.length=0;for(const m of meteors)scene.remove(m.m);meteors.length=0;for(const r of ropes)for(const m of r.ms)scene.remove(m);ropes.length=0;for(let i=0;i<ND;i++)decalIM.setMatrixAt(i,ZERO);decalIM.instanceMatrix.needsUpdate=true;dI=0;bloodEl.innerHTML='';
 }
 function startBattle(){
-  GOD=S.mode==='god'&&!MP.inMatch;VILL=S.mode==='village'&&!MP.inMatch;if(!GOD&&!VILL&&S.army<15){S.army=15;saveS();}clearAll();const keep=player?player.wi:0;player=null;spawnArmies();if(keep!==player.wi)swapWeapon(player,keep);
+  GOD=S.mode==='god'&&!MP.inMatch;VILL=S.mode==='village'&&!MP.inMatch;TEST=S.mode==='test'&&!MP.inMatch;if(ROOM.g){scene.remove(ROOM.g);ROOM.g=null;}ROOM.on=false;ROOM.subjects=[];grass.visible=(S.gfx!=='std')&&!TEST;if(!GOD&&!VILL&&!TEST&&S.army<15){S.army=15;saveS();}clearAll();const keep=player?player.wi:0;player=null;spawnArmies();if(keep!==player.wi)swapWeapon(player,keep);
   if(pov)setPov(null);victSaid=false;reinfLeft=S.reinf==='on'?3+Math.min(3,wave-1):0;reinfT=50;camYaw=0;camPitch=0;state='play';prep=3.2;
   if(GOD){reinfLeft=0;prep=.5;godPeace=true;godTime=1;godTimeI=0;godTool=0;godCd=0;player.ghost=true;player.hideBody=true;godCam.x=0;godCam.z=70;godCam.y=G(0,70)+28;camPitch=-.45;}
   if(VILL){reinfLeft=0;prep=.3;vDay=1;vDayT=0;vCoins=20;vProsper=0;vCarry=null;vRaid=false;vWarned=false;}
   if(MP.inMatch){if(!MP.host||MP.mode!=='coop')reinfLeft=0;prep=1.5;}
   nightK=0;updateNight(0,0);if(!VILL)$('prompt').hidden=true;
-  document.body.classList.toggle('god',GOD);document.body.classList.toggle('vill',VILL);buildHotbar();cmd=VILL?'hold':'charge';rallyCd=0;defeatT=0;victoryT=0;slowT=0;timeScale=1;
+  if(TEST){reinfLeft=0;prep=0;camYaw=0;camPitch=0;roomLighting();}
+  document.body.classList.toggle('god',GOD);document.body.classList.toggle('vill',VILL);document.body.classList.toggle('test',TEST);buildHotbar();cmd=VILL?'hold':'charge';rallyCd=0;defeatT=0;victoryT=0;slowT=0;timeScale=1;
   $('menu').hidden=true;$('hud').hidden=false;buildVM();syncUI();
-  banner(GOD?'God mode. Press N to start the war.':VILL?'Protect the village, Warlord':'Form up, Warlord',GOD?2600:1900);setTimeout(()=>{if(state==='play'&&!GOD&&!VILL){banner('Charge!',1300);sfx('horn');chorus('charge');}},3000);
+  banner(GOD?'God mode. Press N to start the war.':VILL?'Protect the village, Warlord':TEST?'Test chamber. E unties or ties a subject.':'Form up, Warlord',GOD?2600:1900);setTimeout(()=>{if(state==='play'&&!GOD&&!VILL&&!TEST){banner('Charge!',1300);sfx('horn');chorus('charge');}},3000);
 }
 function newGame(){wave=1;kills=0;player=null;startBattle();}
 function nextWave(){wave++;startBattle();}
@@ -2266,9 +2438,9 @@ $('mGo').addEventListener('click',()=>{
 function bindSeg(id,key,conv){
   $(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S[key]=conv(b.dataset.v);saveS();syncUI();});
 }
-bindSeg('segGore','gore',Number);bindSeg('segCam','cam',String);bindSeg('segArmy','army',Number);bindSeg('segCtl','ctl',String);bindSeg('segGfx','gfx',String);bindSeg('segVoice','voice',String);bindSeg('segPg','pg',String);bindSeg('segScope','scope',String);bindSeg('segReinf','reinf',String);bindSeg('segMode','mode',String);bindSeg('segFin','fin',String);
+bindSeg('segGore','gore',Number);bindSeg('segCam','cam',String);bindSeg('segArmy','army',Number);bindSeg('segCtl','ctl',String);bindSeg('segGfx','gfx',String);bindSeg('segVoice','voice',String);bindSeg('segPg','pg',String);bindSeg('segScope','scope',String);bindSeg('segReinf','reinf',String);bindSeg('segMode','mode',String);bindSeg('segFin','fin',String);bindSeg('segTestPlace','testPlace',String);bindSeg('segTestN','testN',Number);
 function syncUI(){
-  for(const [id,key] of [['segGore','gore'],['segCam','cam'],['segArmy','army'],['segCtl','ctl'],['segGfx','gfx'],['segVoice','voice'],['segPg','pg'],['segScope','scope'],['segReinf','reinf'],['segMode','mode'],['segFin','fin']])
+  for(const [id,key] of [['segGore','gore'],['segCam','cam'],['segArmy','army'],['segCtl','ctl'],['segGfx','gfx'],['segVoice','voice'],['segPg','pg'],['segScope','scope'],['segReinf','reinf'],['segMode','mode'],['segFin','fin'],['segTestPlace','testPlace'],['segTestN','testN']])
     for(const b of $(id).children)b.setAttribute('aria-pressed',String(String(S[key])===b.dataset.v));
   applyCtl();applyGfx();$('bGore').textContent=GORE_NAMES[S.gore]+' gore';$('bCam').textContent=S.cam==='tp'?'Third person':'First person';
   $('bCmd').textContent={charge:'Army: charging',hold:'Army: holding',follow:'Army: following you'}[cmd];
@@ -2312,7 +2484,7 @@ function update(dt){
   TIME+=dt;for(const a of ANIM)a.rotation.z+=dt*.5;
   if(prep>0&&state==='play'){prep-=dt;}
   for(const u of units){if(u.sayQ&&TIME>=u.sayQ.t){const q=u.sayQ;u.sayQ=null;say(u,q.text,q.o||{});}}
-  for(const u of units.slice()){if(u.isPlayer)continue;if(u.puppet||u.remote){remoteUpdate(u,dt);continue;}if(u.fin){updateFinisher(u,dt);bleedTick(u,dt);continue;}if(u.finV){u.vx=0;u.vz=0;integrate(u,dt);poseAlive(u);continue;}if(u.dying){updateDying(u,dt);bleedTick(u,dt);continue;}if(u.civ){civUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);continue;}aiUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);}
+  for(const u of units.slice()){if(u.isPlayer)continue;if(u.puppet||u.remote){remoteUpdate(u,dt);continue;}if(u.fin){updateFinisher(u,dt);bleedTick(u,dt);continue;}if(u.finV){u.vx=0;u.vz=0;integrate(u,dt);if(u.tied)poseTied(u);else poseAlive(u);continue;}if(u.tied){tiedUpdate(u,dt);bleedTick(u,dt);continue;}if(u.dying){updateDying(u,dt);bleedTick(u,dt);continue;}if(u.civ){civUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);continue;}aiUpdate(u,dt);integrate(u,dt);poseAlive(u);bleedTick(u,dt);}
   if(player&&player.fin&&!player.dead){updateFinisher(player,dt);}else if(player&&!player.dead){if(state==='play'){updatePlayer(dt);}else{player.vx*=.9;player.vz*=.9;}integrate(player,dt);poseAlive(player);}
   // separation
   for(let i=0;i<units.length;i++){const a=units[i];if(a.ghost||a.hidden||a.puppet)continue;for(let j=i+1;j<units.length;j++){const b=units[j];if(b.ghost||b.hidden||b.puppet)continue;const dx=b.x-a.x,th=(a.mount||b.mount)?1.3:.8;if(dx>th||dx<-th)continue;const dz=b.z-a.z,d2=dx*dx+dz*dz;
@@ -2323,11 +2495,11 @@ function update(dt){
     if(!e.gibbed){bleedTick(e,dt);
       if(!e.asleep){const mv=ragStep(e,Math.min(dt,.033));if(mv<.02){if(++e.sleepN>40)e.asleep=true;}else e.sleepN=0;e.dirty=true;}
       if(!e.pool&&e.deadT>.8){e.pool=true;makePool(e.P[PELV*3],e.P[PELV*3+2],[.55,1.2,2][S.gore]*rnd(.8,1.2));}}}
-  updateProps(dt);updateRopes(dt);updateDropW(dt);updateGodFx(dt);if(VILL)villUpdate(dt);updateArrows(dt);updateBombs(dt);updateParticles(dt);updateFx(dt);
+  updateProps(dt);updateRopes(dt);updateDropW(dt);updateGodFx(dt);if(VILL)villUpdate(dt);if(TEST)testTick(dt);updateArrows(dt);updateBombs(dt);updateParticles(dt);updateFx(dt);
   // end conditions
   if(state==='play'){
     if(defeatT>0){defeatT-=dt;if(defeatT<=0)showMenu('defeat');}
-    else if(prep<=0&&!GOD&&!VILL&&!(MP.inMatch&&(!MP.host||MP.mode!=='coop'))){let en=0;for(const u of units)if(u.team===1)en++;if(reinfLeft>0){reinfT-=dt;if(reinfT<=0||(en<=2&&reinfT<40)){spawnReinf();en=1;}else if(en===0)en=1;}
+    else if(prep<=0&&!GOD&&!VILL&&!TEST&&!(MP.inMatch&&(!MP.host||MP.mode!=='coop'))){let en=0;for(const u of units)if(u.team===1)en++;if(reinfLeft>0){reinfT-=dt;if(reinfT<=0||(en<=2&&reinfT<40)){spawnReinf();en=1;}else if(en===0)en=1;}
       if(en===0){if(!victSaid){victSaid=true;chorus('victory');}victoryT+=dt;if(victoryT>1.6){if(MP.inMatch){mpNextWave();}else{banner('Victory',2000);showMenu('victory');}}}}
   }
   if(slowT>0)slowT-=dt/Math.max(.2,timeScale);timeScale+=((slowT>0?.28:1)-timeScale)*Math.min(1,dt*9);
@@ -2354,13 +2526,14 @@ function updateCamera(dt,realDt){
     if(player)player.hideBody=GOD;vm.visible=false;orbit.a+=realDt*.12;const r=state==='start'?16:11,cx=player.P[CHEST*3],cz=player.P[CHEST*3+2];
     camera.position.set(cx+Math.sin(orbit.a)*r,G(cx+Math.sin(orbit.a)*r,cz+Math.cos(orbit.a)*r)+(state==='start'?3.2:4.2),cz+Math.cos(orbit.a)*r);camera.lookAt(cx,player.y+1.5,cz+(state==='start'?-6:0));
   }
+  if(ROOM.on){camera.position.x=clamp(camera.position.x,ROOM.cx-ROOM.hx+.4,ROOM.cx+ROOM.hx-.4);camera.position.z=clamp(camera.position.z,ROOM.cz-ROOM.hz+.4,ROOM.cz+ROOM.hz-.4);camera.position.y=Math.min(camera.position.y,ROOM.y+ROOM.H-.3);}
   if(sh>.002)camera.position.add(v1.set(rnd(-sh,sh),rnd(-sh,sh),rnd(-sh,sh)));
   {const tf=(player.fin&&state==='play')?58:72;if(Math.abs(camera.fov-tf)>.15){camera.fov+=(tf-camera.fov)*Math.min(1,realDt*10);camera.updateProjectionMatrix();}}
 }
 function updateHUD(){
   let a=0,e=0;for(const u of units){if(u.team===0&&!u.isPlayer)a++;else if(u.team===1)e++;}
   $('cAlly').textContent=a;$('cEnemy').textContent=e;$('cKills').textContent=kills;$('cWave').textContent=wave;$('cReinf').textContent=reinfLeft;drawRadar();
-  if(VILL)updateVillHud();$('mpBoard').hidden=!MP.inMatch;if(MP.inMatch)updateMpBoard();$('godTag').hidden=!GOD;if(GOD)$('godTag').textContent='God mode: '+TOOLS[godTool].n+' ('+TOOLS[godTool].d+') | '+['Time normal','Slow motion','Time frozen','Fast time'][godTimeI]+(godPeace?' | Ceasefire (N starts war)':' | War (N for peace)');
+  if(VILL)updateVillHud();if(TEST)updateTestHud();$('mpBoard').hidden=!MP.inMatch;if(MP.inMatch)updateMpBoard();$('godTag').hidden=!GOD;if(GOD)$('godTag').textContent='God mode: '+TOOLS[godTool].n+' ('+TOOLS[godTool].d+') | '+['Time normal','Slow motion','Time frozen','Fast time'][godTimeI]+(godPeace?' | Ceasefire (N starts war)':' | War (N for peace)');
   const hp=Math.max(0,Math.round(player.hp));if(hp!==lastHp){lastHp=hp;$('hptxt').textContent=hp;$('hpfill').style.width=(hp/player.maxhp*100)+'%';}
   $('rally').textContent=rallyCd>0?'Rally cry ready in '+Math.ceil(rallyCd)+'s':'Rally cry ready (F)';
   $('cross').style.opacity=S.cam==='fp'||player.w.t!=='melee'?1:.55;
