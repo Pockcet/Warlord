@@ -182,6 +182,512 @@ body.camp #testHud{display:none}
 @media (prefers-reduced-motion: reduce){.cap{animation:none}}
 @media (prefers-reduced-motion: reduce){#banner,#hpfill{transition:none}}
 </style>
+  
+<style>
+/* ===== WARLORD ARMORY ===== */
+#warlordArmory {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  place-items: center;
+  padding: 12px;
+  background: #090d16ee;
+  color: #f1e8d2;
+  font-family: Arial, sans-serif;
+}
+#warlordArmory.open { display: grid; }
+#waPanel {
+  width: min(760px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 22px;
+  background: #182235;
+  border: 2px solid #c9a44c;
+  border-radius: 12px;
+}
+#waPanel button, #waPanel select, #waPanel input {
+  padding: 10px;
+  margin: 4px;
+  border: 1px solid #a88b49;
+  border-radius: 5px;
+  background: #25334a;
+  color: white;
+  font: inherit;
+}
+#waPanel button { cursor: pointer; }
+#waPanel button:hover { background: #3b4e6a; }
+.waRow { display:flex; flex-wrap:wrap; gap:5px; margin:12px 0; }
+#waMessage { min-height:40px; color:#f4cf65; }
+#waClose { float:right; }
+</style>
+
+<script>
+/*
+  WARLORD: COMMAND THE HORDE — ARMORY ADD-ON
+  Admin code: IRONCROWN-777
+*/
+window.addEventListener("load", function () {
+  "use strict";
+
+  // Wait until the original game has finished initializing.
+  if (typeof WEAPONS === "undefined" ||
+      typeof units === "undefined" ||
+      typeof swapWeapon !== "function") {
+    console.error("Warlord Armory: original game variables were not found.");
+    return;
+  }
+
+  const ADMIN_CODE = "IRONCROWN-777";
+  const SAVE_KEY = "warlord-cosmetics-v1";
+
+  const tiers = [
+    {name:"Common", chance:48, colors:[
+      "#6d7b8a","#596b4c","#7c6b58","#9a8d78",
+      "#596078","#8a5546","#667b7b","#777777"]},
+    {name:"Uncommon", chance:25, colors:[
+      "#32805b","#267b91","#6b8d39","#7b6840",
+      "#4f718d","#9b6d42","#5e7c68","#7b8060"]},
+    {name:"Rare", chance:15, colors:[
+      "#2365c4","#1b8f9c","#6b48b8","#397dcb",
+      "#3b9b70","#9b4e9e","#4c6aa8","#3b8f95"]},
+    {name:"Epic", chance:8, colors:[
+      "#8b38c7","#1b9fba","#c04473","#4760d1",
+      "#1e9a78","#b86c2b","#6d47b8","#297ca7"]},
+    {name:"Legendary", chance:3, colors:[
+      "#f0b928","#ff6b24","#e8d7a0","#c83e37",
+      "#42d5d0","#d7a9e8","#f2f0e8","#89d94b"]},
+    {name:"Mythic", chance:1, colors:[
+      "#ff1744","#00e5ff","#ff00d4","#b6ff00",
+      "#ffffff","#ff7a00","#7c4dff","#00ff91"]}
+  ];
+
+  const characterSkins = tiers.flatMap(tier =>
+    tier.colors.map((color, i) => ({
+      id: tier.name + "-" + (i + 1),
+      name: tier.name + " " + [
+        "Vanguard","Ranger","Ironhide","Stormguard",
+        "Duskblade","Sunforged","Frostborn","Warlord"
+      ][i],
+      rarity: tier.name,
+      color: color
+    }))
+  );
+
+  const weaponNames = [
+    "Plain","Forged","Etched","Battleworn","Gilded",
+    "Runic","Ember","Frost","Storm","Royal",
+    "Obsidian","Ivory","Venom","Sunrise","Moonfall",
+    "Dragon","Phantom","Celestial","Ancient","Warlord"
+  ];
+
+  const weaponColors = [
+    "#9ca6b1","#6f7b87","#b2a68d","#504b52","#d7a935",
+    "#4d6b9b","#d4512e","#70d6e6","#4d83d4","#c9a04a",
+    "#252632","#e8e0cb","#4c9a61","#e58b36","#8a91d9",
+    "#b32d36","#514b6d","#83d9dc","#9d7d52","#f2d477"
+  ];
+
+  const weaponSkins = WEAPONS.map((weapon, wi) =>
+    weaponNames.map((name, i) => ({
+      id: "weapon-" + wi + "-" + i,
+      name: name + " " + weapon.n,
+      weaponIndex: wi,
+      color: weaponColors[i],
+      rarity: i < 4 ? "Common" :
+        i < 8 ? "Uncommon" :
+        i < 12 ? "Rare" :
+        i < 14 ? "Epic" :
+        i < 16 ? "Legendary" : "Mythic"
+    }))
+  );
+
+  let save = {
+    coins: 1000,
+    ownedCharacters: ["Common-1"],
+    ownedWeapons: {},
+    equippedCharacter: "Common-1",
+    equippedWeapons: {},
+    adminUnlocked: false
+  };
+
+  try {
+    const old = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+    if (old && Number.isFinite(old.coins) &&
+        Array.isArray(old.ownedCharacters)) {
+      save = {...save, ...old};
+    }
+  } catch (e) {
+    console.warn("Armory save could not be loaded.", e);
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    } catch (e) {
+      console.warn("Armory save could not be stored.", e);
+    }
+    update();
+  }
+
+  function allCharacterIds() {
+    return characterSkins.map(s => s.id);
+  }
+
+  function ownedWeaponIds(index) {
+    if (save.adminUnlocked) {
+      return weaponSkins[index].map(s => s.id);
+    }
+    return save.ownedWeapons[index] || [];
+  }
+
+  function randomItem(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  function rollTier() {
+    let n = Math.random() * 100;
+    for (const tier of tiers) {
+      n -= tier.chance;
+      if (n < 0) return tier.name;
+    }
+    return "Common";
+  }
+
+  // Add the window to the page.
+  const windowEl = document.createElement("div");
+  windowEl.id = "warlordArmory";
+  windowEl.innerHTML = `
+    <div id="waPanel">
+      <button id="waClose">Close ✕</button>
+      <h1>⚔ WARLORD ARMORY</h1>
+      <p>Coins: <b id="waCoins">1000</b></p>
+      <p>Character skins: <b id="waChars">1</b>/48</p>
+      <p>Weapon skins: <b id="waWeapons">0</b></p>
+
+      <h3>Gacha crates</h3>
+      <div class="waRow">
+        <button id="waOne">Open 1 — 100 coins</button>
+        <button id="waTen">Open 10 — 900 coins</button>
+      </div>
+
+      <h3>Character appearance</h3>
+      <div class="waRow">
+        <select id="waCharacter"></select>
+        <button id="waEquipCharacter">Equip character</button>
+      </div>
+
+      <h3>Weapon finishes</h3>
+      <div class="waRow">
+        <select id="waWeapon"></select>
+        <select id="waWeaponSkin"></select>
+        <button id="waEquipWeapon">Equip weapon</button>
+      </div>
+
+      <h3>Admin unlock</h3>
+      <div class="waRow">
+        <input id="waCode" type="password" placeholder="Admin code">
+        <button id="waUnlock">Unlock every skin</button>
+      </div>
+
+      <h3>Save file</h3>
+      <div class="waRow">
+        <button id="waExport">Export save</button>
+        <label>Import save <input id="waImport" type="file"
+          accept=".json,application/json"></label>
+      </div>
+      <p id="waMessage" aria-live="polite"></p>
+    </div>`;
+  document.body.appendChild(windowEl);
+
+  // Add an entry button to the existing menu.
+  const menuButton = document.createElement("button");
+  menuButton.id = "waOpen";
+  menuButton.textContent = "Armory & Gacha";
+  menuButton.style.cssText =
+    "display:block;width:100%;padding:12px;margin:8px 0;" +
+    "font-size:18px;font-weight:bold;cursor:pointer;";
+  const oldGo = document.getElementById("mGo");
+  if (oldGo && oldGo.parentElement) {
+    oldGo.parentElement.insertBefore(menuButton, oldGo);
+  } else {
+    document.body.appendChild(menuButton);
+  }
+
+  const el = id => document.getElementById(id);
+  const message = text => { el("waMessage").textContent = text; };
+
+  function populate() {
+    el("waCharacter").innerHTML = characterSkins
+      .filter(s => save.adminUnlocked ||
+        save.ownedCharacters.includes(s.id))
+      .map(s => `<option value="${s.id}">[${s.rarity}] ${s.name}</option>`)
+      .join("");
+
+    el("waCharacter").value = save.equippedCharacter;
+
+    el("waWeapon").innerHTML = WEAPONS.map((w, i) =>
+      `<option value="${i}">${w.n}</option>`
+    ).join("");
+
+    populateWeaponSkins();
+    update();
+  }
+
+  function populateWeaponSkins() {
+    const index = Number(el("waWeapon").value || 0);
+    el("waWeaponSkin").innerHTML = weaponSkins[index]
+      .filter(s => ownedWeaponIds(index).includes(s.id))
+      .map(s => `<option value="${s.id}">[${s.rarity}] ${s.name}</option>`)
+      .join("");
+
+    if (!el("waWeaponSkin").options.length) {
+      el("waWeaponSkin").innerHTML =
+        '<option value="">No skins unlocked yet</option>';
+    }
+    el("waWeaponSkin").value = save.equippedWeapons[index] || "";
+  }
+
+  function update() {
+    el("waCoins").textContent = save.coins;
+    el("waChars").textContent = save.adminUnlocked
+      ? 48 : save.ownedCharacters.length;
+    el("waWeapons").textContent = weaponSkins.reduce(
+      (sum, list, i) => sum + ownedWeaponIds(i).length, 0
+    ) + "/" + (WEAPONS.length * 20);
+  }
+
+  function openCrates(amount) {
+    const cost = amount === 10 ? 900 : 100;
+    if (save.coins < cost) {
+      message("Not enough coins!");
+      return;
+    }
+
+    save.coins -= cost;
+    const rewards = [];
+
+    for (let i = 0; i < amount; i++) {
+      if (Math.random() < 0.62) {
+        const rarity = rollTier();
+        const skin = randomItem(characterSkins.filter(
+          s => s.rarity === rarity
+        ));
+
+        if (save.ownedCharacters.includes(skin.id)) {
+          save.coins += 25;
+          rewards.push(skin.name + " duplicate (+25 coins)");
+        } else {
+          save.ownedCharacters.push(skin.id);
+          rewards.push(skin.name);
+        }
+      } else {
+        const wi = Math.floor(Math.random() * WEAPONS.length);
+        const skin = randomItem(weaponSkins[wi]);
+        save.ownedWeapons[wi] = save.ownedWeapons[wi] || [];
+
+        if (save.ownedWeapons[wi].includes(skin.id)) {
+          save.coins += 25;
+          rewards.push(skin.name + " duplicate (+25 coins)");
+        } else {
+          save.ownedWeapons[wi].push(skin.id);
+          rewards.push(skin.name);
+        }
+      }
+    }
+
+    persist();
+    populate();
+    message("Rewards: " + rewards.join(" • "));
+  }
+
+  // Apply colors to the original character model.
+  function applyCharacterSkin() {
+    const skin = characterSkins.find(
+      s => s.id === save.equippedCharacter
+    );
+    if (!skin) return;
+
+    for (const unit of units) {
+      if (!unit.isPlayer) continue;
+
+      const tint = new THREE.Color(skin.color);
+
+      for (const segment of unit.segs || []) {
+        if (!segment.m || !segment.m.material) continue;
+        segment.m.material = segment.m.material.clone();
+        segment.m.material.color.copy(tint);
+      }
+
+      // Keep the helmet and shoulder armor metallic.
+      for (const mesh of [unit.helm, ...(unit.pauld || [])]) {
+        if (!mesh || !mesh.material) continue;
+        mesh.material = mesh.material.clone();
+        mesh.material.color.copy(tint);
+      }
+
+      unit.dirty = true;
+      renderUnit(unit);
+    }
+  }
+
+  // Apply the selected finish to the player's current weapon.
+  function applyWeaponSkin() {
+    if (typeof player === "undefined" || !player || !player.wMesh) return;
+
+    const index = player.wi;
+    const skinId = save.equippedWeapons[index];
+    const skin = (weaponSkins[index] || []).find(s => s.id === skinId);
+    if (!skin) return;
+
+    const tint = new THREE.Color(skin.color);
+    player.wMesh.traverse(object => {
+      if (!object.isMesh || !object.material) return;
+      object.material = object.material.clone();
+      object.material.color.copy(tint);
+    });
+
+    player.dirty = true;
+    renderUnit(player);
+  }
+
+  // Reapply weapon finishes after the original game swaps weapons.
+  const originalSwapWeapon = swapWeapon;
+  swapWeapon = function(unit, index) {
+    originalSwapWeapon(unit, index);
+    if (unit && unit.isPlayer) applyWeaponSkin();
+  };
+
+  menuButton.addEventListener("click", () => {
+    windowEl.classList.add("open");
+    populate();
+    message("Welcome to the Armory!");
+  });
+
+  el("waClose").addEventListener("click", () =>
+    windowEl.classList.remove("open")
+  );
+
+  el("waOne").addEventListener("click", () => openCrates(1));
+  el("waTen").addEventListener("click", () => openCrates(10));
+  el("waWeapon").addEventListener("change", populateWeaponSkins);
+
+  el("waEquipCharacter").addEventListener("click", () => {
+    const id = el("waCharacter").value;
+    if (!save.adminUnlocked &&
+        !save.ownedCharacters.includes(id)) {
+      message("You have not unlocked this skin.");
+      return;
+    }
+
+    save.equippedCharacter = id;
+    persist();
+    applyCharacterSkin();
+    message("Character skin equipped!");
+  });
+
+  el("waEquipWeapon").addEventListener("click", () => {
+    const index = Number(el("waWeapon").value);
+    const id = el("waWeaponSkin").value;
+
+    if (!id || !ownedWeaponIds(index).includes(id)) {
+      message("Unlock that weapon skin first.");
+      return;
+    }
+
+    save.equippedWeapons[index] = id;
+    persist();
+
+    if (typeof player !== "undefined" && player &&
+        player.wi === index) {
+      applyWeaponSkin();
+    }
+    message("Weapon skin equipped!");
+  });
+
+  el("waUnlock").addEventListener("click", () => {
+    if (el("waCode").value !== ADMIN_CODE) {
+      message("Incorrect admin code.");
+      return;
+    }
+
+    save.adminUnlocked = true;
+    save.ownedCharacters = allCharacterIds();
+    save.ownedWeapons = {};
+
+    weaponSkins.forEach((list, i) => {
+      save.ownedWeapons[i] = list.map(s => s.id);
+    });
+
+    persist();
+    populate();
+    message("Admin accepted! All skins unlocked.");
+    el("waCode").value = "";
+  });
+
+  el("waExport").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(save, null, 2)], {
+      type: "application/json"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "warlord-save.json";
+    link.click();
+    URL.revokeObjectURL(url);
+    message("Save exported!");
+  });
+
+  el("waImport").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const data = JSON.parse(await file.text());
+
+      if (!data || !Number.isFinite(data.coins) ||
+          !Array.isArray(data.ownedCharacters) ||
+          !data.ownedWeapons) {
+        throw new Error("Invalid save file");
+      }
+
+      save = {
+        ...save,
+        ...data,
+        coins: Math.max(0, Math.floor(data.coins))
+      };
+
+      persist();
+      populate();
+      applyCharacterSkin();
+      applyWeaponSkin();
+      message("Save imported!");
+    } catch (error) {
+      message("That save file is invalid.");
+    }
+
+    event.target.value = "";
+  });
+
+  // Award coins for defeating enemy soldiers.
+  const originalKillUnit = killUnit;
+  killUnit = function(enemy, damage, dx, dz, knockback, weapon, options) {
+    if (enemy && !enemy.isPlayer && enemy.team === 1 &&
+        !enemy.remote && enemy.lastHitBy === "player") {
+      save.coins += 5;
+      persist();
+    }
+    return originalKillUnit.apply(this, arguments);
+  };
+
+  populate();
+  applyCharacterSkin();
+  applyWeaponSkin();
+
+  console.log("Warlord Armory loaded.");
+});
+</script>
 </head>
 <body>
 <div id="game"></div>
