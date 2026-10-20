@@ -179,515 +179,28 @@ body.camp #testHud{display:none}
 #campPanel button:disabled{opacity:.45;cursor:default}
 #campPanel .crow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 #campPanel .crow button{margin:0}
+#gemTag{position:absolute;right:16px;bottom:48px;font-size:15px;opacity:.9}
+body.touch #gemTag{display:none}
+#armory{position:absolute;inset:0;z-index:31;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(10,10,16,.85)}
+#armory[hidden]{display:none}
+#armory button.mpb{font:inherit;font-weight:700;font-size:17px;padding:10px 16px;margin:8px 8px 0 0;color:var(--btn-text);background:var(--btn-bg);border:0;border-radius:4px;cursor:pointer}
+#armory button.mpb.alt{color:var(--text);background:transparent;border:1px solid var(--line)}
+#armory button:disabled{opacity:.45;cursor:default}
+#armWeapons{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#armWeapons button{font:inherit;font-size:15px;padding:6px 10px;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:4px;cursor:pointer}
+#armWeapons button[aria-pressed="true"]{background:var(--sel-bg);border-color:var(--sel-bg);color:#fff}
+#armGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.sk{border:2px solid var(--line);border-radius:6px;padding:8px;font-size:14px;line-height:1.25}
+.sk .sw{height:34px;border-radius:4px;margin-bottom:6px}
+.sk b{display:block;font-size:15px}
+.sk.locked{opacity:.5}
+.sk button{margin-top:6px;font:inherit;font-size:14px;padding:4px 8px;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:4px;cursor:pointer}
+.sres{padding:5px 8px;margin-top:4px;border-left:5px solid;border-radius:3px;background:rgba(127,127,127,.12);animation:sresin .35s ease-out both}
+@keyframes sresin{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.sres{animation:none}}
 @media (prefers-reduced-motion: reduce){.cap{animation:none}}
 @media (prefers-reduced-motion: reduce){#banner,#hpfill{transition:none}}
 </style>
-  
-/* ===== WARLORD ARMORY ===== */
-#warlordArmory {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: none;
-  place-items: center;
-  padding: 12px;
-  background: #090d16ee;
-  color: #f1e8d2;
-  font-family: Arial, sans-serif;
-}
-#warlordArmory.open { display: grid; }
-#waPanel {
-  width: min(760px, 96vw);
-  max-height: 90vh;
-  overflow: auto;
-  box-sizing: border-box;
-  padding: 22px;
-  background: #182235;
-  border: 2px solid #c9a44c;
-  border-radius: 12px;
-}
-#waPanel button, #waPanel select, #waPanel input {
-  padding: 10px;
-  margin: 4px;
-  border: 1px solid #a88b49;
-  border-radius: 5px;
-  background: #25334a;
-  color: white;
-  font: inherit;
-}
-#waPanel button { cursor: pointer; }
-#waPanel button:hover { background: #3b4e6a; }
-.waRow { display:flex; flex-wrap:wrap; gap:5px; margin:12px 0; }
-#waMessage { min-height:40px; color:#f4cf65; }
-#waClose { float:right; }
-</style>
-
-<script>
-/*
-  WARLORD: COMMAND THE HORDE — ARMORY ADD-ON
-  Admin code: IRONCROWN-777
-*/
-window.addEventListener("load", function () {
-  "use strict";
-
-  // Wait until the original game has finished initializing.
-  if (typeof WEAPONS === "undefined" ||
-      typeof units === "undefined" ||
-      typeof swapWeapon !== "function") {
-    console.error("Warlord Armory: original game variables were not found.");
-    return;
-  }
-
-  const ADMIN_CODE = "IRONCROWN-777";
-  const SAVE_KEY = "warlord-cosmetics-v1";
-
-  const tiers = [
-    {name:"Common", chance:48, colors:[
-      "#6d7b8a","#596b4c","#7c6b58","#9a8d78",
-      "#596078","#8a5546","#667b7b","#777777"]},
-    {name:"Uncommon", chance:25, colors:[
-      "#32805b","#267b91","#6b8d39","#7b6840",
-      "#4f718d","#9b6d42","#5e7c68","#7b8060"]},
-    {name:"Rare", chance:15, colors:[
-      "#2365c4","#1b8f9c","#6b48b8","#397dcb",
-      "#3b9b70","#9b4e9e","#4c6aa8","#3b8f95"]},
-    {name:"Epic", chance:8, colors:[
-      "#8b38c7","#1b9fba","#c04473","#4760d1",
-      "#1e9a78","#b86c2b","#6d47b8","#297ca7"]},
-    {name:"Legendary", chance:3, colors:[
-      "#f0b928","#ff6b24","#e8d7a0","#c83e37",
-      "#42d5d0","#d7a9e8","#f2f0e8","#89d94b"]},
-    {name:"Mythic", chance:1, colors:[
-      "#ff1744","#00e5ff","#ff00d4","#b6ff00",
-      "#ffffff","#ff7a00","#7c4dff","#00ff91"]}
-  ];
-
-  const characterSkins = tiers.flatMap(tier =>
-    tier.colors.map((color, i) => ({
-      id: tier.name + "-" + (i + 1),
-      name: tier.name + " " + [
-        "Vanguard","Ranger","Ironhide","Stormguard",
-        "Duskblade","Sunforged","Frostborn","Warlord"
-      ][i],
-      rarity: tier.name,
-      color: color
-    }))
-  );
-
-  const weaponNames = [
-    "Plain","Forged","Etched","Battleworn","Gilded",
-    "Runic","Ember","Frost","Storm","Royal",
-    "Obsidian","Ivory","Venom","Sunrise","Moonfall",
-    "Dragon","Phantom","Celestial","Ancient","Warlord"
-  ];
-
-  const weaponColors = [
-    "#9ca6b1","#6f7b87","#b2a68d","#504b52","#d7a935",
-    "#4d6b9b","#d4512e","#70d6e6","#4d83d4","#c9a04a",
-    "#252632","#e8e0cb","#4c9a61","#e58b36","#8a91d9",
-    "#b32d36","#514b6d","#83d9dc","#9d7d52","#f2d477"
-  ];
-
-  const weaponSkins = WEAPONS.map((weapon, wi) =>
-    weaponNames.map((name, i) => ({
-      id: "weapon-" + wi + "-" + i,
-      name: name + " " + weapon.n,
-      weaponIndex: wi,
-      color: weaponColors[i],
-      rarity: i < 4 ? "Common" :
-        i < 8 ? "Uncommon" :
-        i < 12 ? "Rare" :
-        i < 14 ? "Epic" :
-        i < 16 ? "Legendary" : "Mythic"
-    }))
-  );
-
-  let save = {
-    coins: 1000,
-    ownedCharacters: ["Common-1"],
-    ownedWeapons: {},
-    equippedCharacter: "Common-1",
-    equippedWeapons: {},
-    adminUnlocked: false
-  };
-
-  try {
-    const old = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
-    if (old && Number.isFinite(old.coins) &&
-        Array.isArray(old.ownedCharacters)) {
-      save = {...save, ...old};
-    }
-  } catch (e) {
-    console.warn("Armory save could not be loaded.", e);
-  }
-
-  function persist() {
-    try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-    } catch (e) {
-      console.warn("Armory save could not be stored.", e);
-    }
-    update();
-  }
-
-  function allCharacterIds() {
-    return characterSkins.map(s => s.id);
-  }
-
-  function ownedWeaponIds(index) {
-    if (save.adminUnlocked) {
-      return weaponSkins[index].map(s => s.id);
-    }
-    return save.ownedWeapons[index] || [];
-  }
-
-  function randomItem(list) {
-    return list[Math.floor(Math.random() * list.length)];
-  }
-
-  function rollTier() {
-    let n = Math.random() * 100;
-    for (const tier of tiers) {
-      n -= tier.chance;
-      if (n < 0) return tier.name;
-    }
-    return "Common";
-  }
-
-  // Add the window to the page.
-  const windowEl = document.createElement("div");
-  windowEl.id = "warlordArmory";
-  windowEl.innerHTML = `
-    <div id="waPanel">
-      <button id="waClose">Close ✕</button>
-      <h1>⚔ WARLORD ARMORY</h1>
-      <p>Coins: <b id="waCoins">1000</b></p>
-      <p>Character skins: <b id="waChars">1</b>/48</p>
-      <p>Weapon skins: <b id="waWeapons">0</b></p>
-
-      <h3>Gacha crates</h3>
-      <div class="waRow">
-        <button id="waOne">Open 1 — 100 coins</button>
-        <button id="waTen">Open 10 — 900 coins</button>
-      </div>
-
-      <h3>Character appearance</h3>
-      <div class="waRow">
-        <select id="waCharacter"></select>
-        <button id="waEquipCharacter">Equip character</button>
-      </div>
-
-      <h3>Weapon finishes</h3>
-      <div class="waRow">
-        <select id="waWeapon"></select>
-        <select id="waWeaponSkin"></select>
-        <button id="waEquipWeapon">Equip weapon</button>
-      </div>
-
-      <h3>Admin unlock</h3>
-      <div class="waRow">
-        <input id="waCode" type="password" placeholder="Admin code">
-        <button id="waUnlock">Unlock every skin</button>
-      </div>
-
-      <h3>Save file</h3>
-      <div class="waRow">
-        <button id="waExport">Export save</button>
-        <label>Import save <input id="waImport" type="file"
-          accept=".json,application/json"></label>
-      </div>
-      <p id="waMessage" aria-live="polite"></p>
-    </div>`;
-  document.body.appendChild(windowEl);
-
-  // Add an entry button to the existing menu.
-  const menuButton = document.createElement("button");
-  menuButton.id = "waOpen";
-  menuButton.textContent = "Armory & Gacha";
-  menuButton.style.cssText =
-    "display:block;width:100%;padding:12px;margin:8px 0;" +
-    "font-size:18px;font-weight:bold;cursor:pointer;";
-  const oldGo = document.getElementById("mGo");
-  if (oldGo && oldGo.parentElement) {
-    oldGo.parentElement.insertBefore(menuButton, oldGo);
-  } else {
-    document.body.appendChild(menuButton);
-  }
-
-  const el = id => document.getElementById(id);
-  const message = text => { el("waMessage").textContent = text; };
-
-  function populate() {
-    el("waCharacter").innerHTML = characterSkins
-      .filter(s => save.adminUnlocked ||
-        save.ownedCharacters.includes(s.id))
-      .map(s => `<option value="${s.id}">[${s.rarity}] ${s.name}</option>`)
-      .join("");
-
-    el("waCharacter").value = save.equippedCharacter;
-
-    el("waWeapon").innerHTML = WEAPONS.map((w, i) =>
-      `<option value="${i}">${w.n}</option>`
-    ).join("");
-
-    populateWeaponSkins();
-    update();
-  }
-
-  function populateWeaponSkins() {
-    const index = Number(el("waWeapon").value || 0);
-    el("waWeaponSkin").innerHTML = weaponSkins[index]
-      .filter(s => ownedWeaponIds(index).includes(s.id))
-      .map(s => `<option value="${s.id}">[${s.rarity}] ${s.name}</option>`)
-      .join("");
-
-    if (!el("waWeaponSkin").options.length) {
-      el("waWeaponSkin").innerHTML =
-        '<option value="">No skins unlocked yet</option>';
-    }
-    el("waWeaponSkin").value = save.equippedWeapons[index] || "";
-  }
-
-  function update() {
-    el("waCoins").textContent = save.coins;
-    el("waChars").textContent = save.adminUnlocked
-      ? 48 : save.ownedCharacters.length;
-    el("waWeapons").textContent = weaponSkins.reduce(
-      (sum, list, i) => sum + ownedWeaponIds(i).length, 0
-    ) + "/" + (WEAPONS.length * 20);
-  }
-
-  function openCrates(amount) {
-    const cost = amount === 10 ? 900 : 100;
-    if (save.coins < cost) {
-      message("Not enough coins!");
-      return;
-    }
-
-    save.coins -= cost;
-    const rewards = [];
-
-    for (let i = 0; i < amount; i++) {
-      if (Math.random() < 0.62) {
-        const rarity = rollTier();
-        const skin = randomItem(characterSkins.filter(
-          s => s.rarity === rarity
-        ));
-
-        if (save.ownedCharacters.includes(skin.id)) {
-          save.coins += 25;
-          rewards.push(skin.name + " duplicate (+25 coins)");
-        } else {
-          save.ownedCharacters.push(skin.id);
-          rewards.push(skin.name);
-        }
-      } else {
-        const wi = Math.floor(Math.random() * WEAPONS.length);
-        const skin = randomItem(weaponSkins[wi]);
-        save.ownedWeapons[wi] = save.ownedWeapons[wi] || [];
-
-        if (save.ownedWeapons[wi].includes(skin.id)) {
-          save.coins += 25;
-          rewards.push(skin.name + " duplicate (+25 coins)");
-        } else {
-          save.ownedWeapons[wi].push(skin.id);
-          rewards.push(skin.name);
-        }
-      }
-    }
-
-    persist();
-    populate();
-    message("Rewards: " + rewards.join(" • "));
-  }
-
-  // Apply colors to the original character model.
-  function applyCharacterSkin() {
-    const skin = characterSkins.find(
-      s => s.id === save.equippedCharacter
-    );
-    if (!skin) return;
-
-    for (const unit of units) {
-      if (!unit.isPlayer) continue;
-
-      const tint = new THREE.Color(skin.color);
-
-      for (const segment of unit.segs || []) {
-        if (!segment.m || !segment.m.material) continue;
-        segment.m.material = segment.m.material.clone();
-        segment.m.material.color.copy(tint);
-      }
-
-      // Keep the helmet and shoulder armor metallic.
-      for (const mesh of [unit.helm, ...(unit.pauld || [])]) {
-        if (!mesh || !mesh.material) continue;
-        mesh.material = mesh.material.clone();
-        mesh.material.color.copy(tint);
-      }
-
-      unit.dirty = true;
-      renderUnit(unit);
-    }
-  }
-
-  // Apply the selected finish to the player's current weapon.
-  function applyWeaponSkin() {
-    if (typeof player === "undefined" || !player || !player.wMesh) return;
-
-    const index = player.wi;
-    const skinId = save.equippedWeapons[index];
-    const skin = (weaponSkins[index] || []).find(s => s.id === skinId);
-    if (!skin) return;
-
-    const tint = new THREE.Color(skin.color);
-    player.wMesh.traverse(object => {
-      if (!object.isMesh || !object.material) return;
-      object.material = object.material.clone();
-      object.material.color.copy(tint);
-    });
-
-    player.dirty = true;
-    renderUnit(player);
-  }
-
-  // Reapply weapon finishes after the original game swaps weapons.
-  const originalSwapWeapon = swapWeapon;
-  swapWeapon = function(unit, index) {
-    originalSwapWeapon(unit, index);
-    if (unit && unit.isPlayer) applyWeaponSkin();
-  };
-
-  menuButton.addEventListener("click", () => {
-    windowEl.classList.add("open");
-    populate();
-    message("Welcome to the Armory!");
-  });
-
-  el("waClose").addEventListener("click", () =>
-    windowEl.classList.remove("open")
-  );
-
-  el("waOne").addEventListener("click", () => openCrates(1));
-  el("waTen").addEventListener("click", () => openCrates(10));
-  el("waWeapon").addEventListener("change", populateWeaponSkins);
-
-  el("waEquipCharacter").addEventListener("click", () => {
-    const id = el("waCharacter").value;
-    if (!save.adminUnlocked &&
-        !save.ownedCharacters.includes(id)) {
-      message("You have not unlocked this skin.");
-      return;
-    }
-
-    save.equippedCharacter = id;
-    persist();
-    applyCharacterSkin();
-    message("Character skin equipped!");
-  });
-
-  el("waEquipWeapon").addEventListener("click", () => {
-    const index = Number(el("waWeapon").value);
-    const id = el("waWeaponSkin").value;
-
-    if (!id || !ownedWeaponIds(index).includes(id)) {
-      message("Unlock that weapon skin first.");
-      return;
-    }
-
-    save.equippedWeapons[index] = id;
-    persist();
-
-    if (typeof player !== "undefined" && player &&
-        player.wi === index) {
-      applyWeaponSkin();
-    }
-    message("Weapon skin equipped!");
-  });
-
-  el("waUnlock").addEventListener("click", () => {
-    if (el("waCode").value !== ADMIN_CODE) {
-      message("Incorrect admin code.");
-      return;
-    }
-
-    save.adminUnlocked = true;
-    save.ownedCharacters = allCharacterIds();
-    save.ownedWeapons = {};
-
-    weaponSkins.forEach((list, i) => {
-      save.ownedWeapons[i] = list.map(s => s.id);
-    });
-
-    persist();
-    populate();
-    message("Admin accepted! All skins unlocked.");
-    el("waCode").value = "";
-  });
-
-  el("waExport").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify(save, null, 2)], {
-      type: "application/json"
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "warlord-save.json";
-    link.click();
-    URL.revokeObjectURL(url);
-    message("Save exported!");
-  });
-
-  el("waImport").addEventListener("change", async event => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    try {
-      const data = JSON.parse(await file.text());
-
-      if (!data || !Number.isFinite(data.coins) ||
-          !Array.isArray(data.ownedCharacters) ||
-          !data.ownedWeapons) {
-        throw new Error("Invalid save file");
-      }
-
-      save = {
-        ...save,
-        ...data,
-        coins: Math.max(0, Math.floor(data.coins))
-      };
-
-      persist();
-      populate();
-      applyCharacterSkin();
-      applyWeaponSkin();
-      message("Save imported!");
-    } catch (error) {
-      message("That save file is invalid.");
-    }
-
-    event.target.value = "";
-  });
-
-  // Award coins for defeating enemy soldiers.
-  const originalKillUnit = killUnit;
-  killUnit = function(enemy, damage, dx, dz, knockback, weapon, options) {
-    if (enemy && !enemy.isPlayer && enemy.team === 1 &&
-        !enemy.remote && enemy.lastHitBy === "player") {
-      save.coins += 5;
-      persist();
-    }
-    return originalKillUnit.apply(this, arguments);
-  };
-
-  populate();
-  applyCharacterSkin();
-  applyWeaponSkin();
-
-  console.log("Warlord Armory loaded.");
-});
-</script>
-  
 </head>
 <body>
 <div id="game"></div>
@@ -715,6 +228,7 @@ window.addEventListener("load", function () {
   <div id="testHud"></div>
   <div id="mpBoard" hidden></div>
   <div id="objective" hidden></div>
+  <div id="gemTag"></div>
   <div id="bossBar" hidden><span id="bossName"></span><em><i id="bossFill"></i></em></div>
   <div id="prompt" hidden></div>
   <div id="flash"></div>
@@ -743,6 +257,7 @@ window.addEventListener("load", function () {
     <h1 id="mTitle">Warlord</h1>
     <p class="sub" id="mSub">Lead your army into battle. Order your soldiers, then wade in yourself.</p>
     
+    <button id="mArmory" style="display:block;width:100%;margin:0 0 10px;padding:12px;font:inherit;font-size:19px;font-weight:700;color:var(--text);background:transparent;border:2px solid var(--line);border-radius:4px;cursor:pointer">Armory and weapon skins</button>
     <button id="mCamp" style="display:block;width:100%;margin:0 0 10px;padding:12px;font:inherit;font-size:19px;font-weight:700;color:#fff;background:var(--sel-bg);border:2px solid var(--sel-bg);border-radius:4px;cursor:pointer">Campaign (story mode)</button>
     <button class="seg-like" id="mOnline" style="display:block;width:100%;margin:0 0 14px;padding:12px;font:inherit;font-size:19px;font-weight:700;color:var(--text);background:transparent;border:2px solid var(--sel-bg);border-radius:4px;cursor:pointer">Online multiplayer</button>
     <fieldset><legend>Mode</legend>
@@ -855,6 +370,18 @@ window.addEventListener("load", function () {
 </div>
 
 <div id="dlg" hidden><div class="box"><div class="who"><i id="dlgIcon"></i><b id="dlgName"></b></div><p id="dlgText"></p><small>Click, tap, Space or Enter to continue. Esc skips.</small></div></div>
+<div id="armory" hidden>
+  <div class="panel" role="dialog" aria-labelledby="armTitle">
+    <h1 id="armTitle">Armory</h1>
+    <p class="sub">Gems: <b id="armGems">0</b> &nbsp; Pulls: <span id="armPulls">0</span> &nbsp; Pity: <span id="armPity">0</span> of 40. Earn gems by defeating enemies, finishing campaign chapters and surviving village nights.</p>
+    <div id="armWeapons"></div>
+    <p class="note" id="armRates"></p>
+    <div><button class="mpb" id="armPull1">Pull x1 (50 gems)</button><button class="mpb" id="armPull10">Pull x10 (450 gems)</button></div>
+    <div id="armResult"></div>
+    <div id="armGrid"></div>
+    <button class="mpb alt" id="armClose">Back</button>
+  </div>
+</div>
 <div id="campPanel" hidden>
   <div class="panel" role="dialog" aria-labelledby="campTitle">
     <h1 id="campTitle">Campaign</h1>
@@ -862,7 +389,7 @@ window.addEventListener("load", function () {
     <label for="campName">Your warlord name</label><input id="campName" type="text" maxlength="16" placeholder="Warlord" autocomplete="off">
     <div id="campList"></div>
     <div class="mprow" style="display:flex;gap:8px;flex-wrap:wrap"><button class="mpb" id="campContinue">Continue</button><button class="mpb alt" id="campNew">New campaign</button></div>
-    <label for="campCode">Save code (copy it to move your progress to another device)</label>
+    <label for="campCode">Save code (progress and weapon skins; copy it to move to another device)</label>
     <input id="campCode" type="text" autocomplete="off" spellcheck="false" placeholder="Paste a save code here, then press Load save code">
     <div class="mprow" style="display:flex;gap:8px;flex-wrap:wrap"><button class="mpb alt" id="campExport">Show save code</button><button class="mpb alt" id="campImport">Load save code</button></div>
     <p class="note" id="campStatus">Your progress is saved automatically in this browser after every chapter.</p>
@@ -1189,24 +716,26 @@ const KF={
   slash:{h:[[.3,1.05,.4],[.32,1.95,-.2],[-.12,1.1,.9]],d:[[.15,.85,.5],[.2,1,-.4],[-.1,-.1,1]]},
   thrust:{h:[[.3,1.15,.4],[.25,1.15,-.05],[.1,1.25,1]],d:[[0,.15,1],[0,.15,1],[0,.1,1]]}
 };
-const protos=WEAPONS.map((w,i)=>{
+function buildWeapon(i,mt){
   const g=new THREE.Group();
   const add=(geo,m,x,y,z,rx,ry,rz)=>{const me=new THREE.Mesh(geo,m);me.position.set(x||0,y||0,z||0);me.rotation.set(rx||0,ry||0,rz||0);g.add(me);return me;};
   const B=(w,h,d)=>new THREE.BoxGeometry(w,h,d),C=(r,h,s)=>new THREE.CylinderGeometry(r,r,h,s||6);
   switch(i){
-    case 0:add(C(.022,.26),matDark,0,.02,0);add(B(.3,.045,.07),matGold,0,.17,0);add(B(.075,1,.018),matSteel,0,.7,0);break;
-    case 1:add(C(.025,1.1),matWood,0,.45,0);add(B(.36,.28,.05),matSteel,.17,.9,0);add(B(.08,.12,.07),matSteelD,-.04,.9,0);break;
-    case 2:add(C(.027,1.05),matWood,0,.42,0);add(B(.38,.2,.2),matSteelD,0,.95,0);add(B(.07,.07,.3),matSteelD,0,.95,0);break;
-    case 3:add(C(.022,2.1),matWood,0,.75,0);add(new THREE.ConeGeometry(.05,.34,6),matSteel,0,1.95,0);break;
-    case 4:add(C(.03,.34),matDark,0,.05,0);add(B(.46,.06,.09),matGold,0,.26,0);add(B(.13,1.55,.025),matSteel,0,1.05,0);break;
-    case 5:add(B(.035,.3,.035),matDark,0,.05,0);add(C(.065,.015,10),matGold,0,.22,0);add(B(.04,1,.012),matSteel,0,.74,0);break;
-    case 6:{const t=add(new THREE.TorusGeometry(.55,.018,5,14,Math.PI),matWood,0,0,0,0,0,-Math.PI/2);add(B(.006,1.1,.006),matSteel,0,0,0);break;}
-    case 7:add(C(.022,1.15),matSteelD,0,.55,0);add(B(.06,.55,.09),matWood,0,-.05,0);add(B(.05,.1,.07),matSteelD,0,.28,.05);break;
-    case 8:add(new THREE.SphereGeometry(.14,10,8),matDark,0,.1,0);add(C(.012,.12),matWood,0,.27,0);add(new THREE.SphereGeometry(.03,6,5),new THREE.MeshBasicMaterial({color:0xffa030}),0,.34,0);break;
-    case 9:add(C(.028,2.8),matWood,0,.9,0);add(new THREE.ConeGeometry(.06,.4,6),matSteel,0,2.5,0);add(B(.5,.28,.02),matGold,.27,2.15,0);break;
+    case 0:add(C(.022,.26),mt.dark,0,.02,0);add(B(.3,.045,.07),mt.gold,0,.17,0);add(B(.075,1,.018),mt.steel,0,.7,0);break;
+    case 1:add(C(.025,1.1),mt.wood,0,.45,0);add(B(.36,.28,.05),mt.steel,.17,.9,0);add(B(.08,.12,.07),mt.steelD,-.04,.9,0);break;
+    case 2:add(C(.027,1.05),mt.wood,0,.42,0);add(B(.38,.2,.2),mt.steelD,0,.95,0);add(B(.07,.07,.3),mt.steelD,0,.95,0);break;
+    case 3:add(C(.022,2.1),mt.wood,0,.75,0);add(new THREE.ConeGeometry(.05,.34,6),mt.steel,0,1.95,0);break;
+    case 4:add(C(.03,.34),mt.dark,0,.05,0);add(B(.46,.06,.09),mt.gold,0,.26,0);add(B(.13,1.55,.025),mt.steel,0,1.05,0);break;
+    case 5:add(B(.035,.3,.035),mt.dark,0,.05,0);add(C(.065,.015,10),mt.gold,0,.22,0);add(B(.04,1,.012),mt.steel,0,.74,0);break;
+    case 6:{const t=add(new THREE.TorusGeometry(.55,.018,5,14,Math.PI),mt.wood,0,0,0,0,0,-Math.PI/2);add(B(.006,1.1,.006),mt.steel,0,0,0);break;}
+    case 7:add(C(.022,1.15),mt.steelD,0,.55,0);add(B(.06,.55,.09),mt.wood,0,-.05,0);add(B(.05,.1,.07),mt.steelD,0,.28,.05);break;
+    case 8:add(new THREE.SphereGeometry(.14,10,8),mt.dark,0,.1,0);add(C(.012,.12),mt.wood,0,.27,0);add(new THREE.SphereGeometry(.03,6,5),new THREE.MeshBasicMaterial({color:0xffa030}),0,.34,0);break;
+    case 9:add(C(.028,2.8),mt.wood,0,.9,0);add(new THREE.ConeGeometry(.06,.4,6),mt.steel,0,2.5,0);add(B(.5,.28,.02),mt.gold,.27,2.15,0);break;
   }
   return g;
-});
+}
+const MT0={steel:matSteel,steelD:matSteelD,gold:matGold,wood:matWood,dark:matDark};
+const protos=WEAPONS.map((w,i)=>buildWeapon(i,MT0));
 
 /* --------------------------------------------------------------- skeleton */
 const HEAD=0,CHEST=1,PELV=2,SHL=3,SHR=4,ELL=5,ELR=6,HAL=7,HAR=8,HIPL=9,HIPR=10,KNL=11,KNR=12,FTL=13,FTR=14;
@@ -1320,7 +849,7 @@ function makeUnit(team,x,z,wi,o){
   if(s.mount&&!o.player){s.plume=new THREE.Mesh(plumeGeo,tm);scene.add(s.plume);s.meshes.push(s.plume);}
   if(s.mount)attachHorse(s);
   if(o.civ){s.mark=new THREE.Mesh(markGeo,new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}));scene.add(s.mark);s.meshes.push(s.mark);}
-  s.wMesh=protos[wi].clone();scene.add(s.wMesh);s.meshes.push(s.wMesh);
+  s.wMesh=protoFor(wi,skinFor(s,wi)).clone();scene.add(s.wMesh);s.meshes.push(s.wMesh);
   poseAlive(s);
   for(const c of CONS){const a=c[0]*3,b=c[1]*3;s.cons.push([c[0],c[1],Math.hypot(s.P[a]-s.P[b],s.P[a+1]-s.P[b+1],s.P[a+2]-s.P[b+2])]);}
   s.Q.set(s.P);
@@ -1328,7 +857,7 @@ function makeUnit(team,x,z,wi,o){
 }
 function swapWeapon(s,wi){
   if(s.wMesh){scene.remove(s.wMesh);const i=s.meshes.indexOf(s.wMesh);if(i>=0)s.meshes.splice(i,1);}
-  s.wi=wi;s.w=WEAPONS[wi];s._cs=undefined;s.wMesh=protos[wi].clone();scene.add(s.wMesh);s.meshes.push(s.wMesh);s.wMesh.visible=false;s._h=false;s.dirty=true;s.atkT=-1;
+  s.wi=wi;s.w=WEAPONS[wi];s._cs=undefined;s.wMesh=protoFor(wi,skinFor(s,wi)).clone();scene.add(s.wMesh);s.meshes.push(s.wMesh);s.wMesh.visible=false;s._h=false;s.dirty=true;s.atkT=-1;
 }
 function removeUnit(u){u.removed=true;for(const m of u.meshes)scene.remove(m);for(const c of u.caps)scene.remove(c.m);}
 function setSeg(m,P,a,b,r){
@@ -1877,7 +1406,7 @@ function killUnit(e,dmg,dx,dz,kb,w,o){
   if(e.tied){e.tied=false;removeRope(e);}
   if(e.label&&e.num){scene.remove(e.label);e.label=null;}
   e.dead=true;e._far=false;e.deadT=0;e.asleep=false;e.hideBody=false;const i=units.indexOf(e);if(i>=0)units.splice(i,1);corpses.push(e);
-  if(e.team===1&&!e.remote)kills++;if(VILL){if(e.civ){vProsper=Math.max(0,vProsper-15);banner('A villager has fallen!',1500);}else if(e.team===1)vCoins+=5;}
+  if(e.team===1&&!e.remote){kills++;if(!GOD&&!TEST)gainGems(1);}if(VILL){if(e.civ){vProsper=Math.max(0,vProsper-15);banner('A villager has fallen!',1500);}else if(e.team===1)vCoins+=5;}
   if(e.horse){bloodBurst(e.x,e.y+1,e.z,dx,dz,S.gore>=1?36:10);sfx('neigh',vol(e));if(S.gore>=1)makePool(e.x,e.z,S.gore===2?2.6:1.6);}
   const f=(kb*.55+3.5)*(o.expl?1.4:1);
   for(let k=0;k<15;k++){const q=k*3,m=rnd(.7,1.2);e.Q[q]=e.P[q]-(dx*f*m+e.vx*.8+rnd(-.8,.8))/60;e.Q[q+1]=e.P[q+1]-(rnd(2.5,5)*(o.expl?2:1))/60;e.Q[q+2]=e.P[q+2]-(dz*f*m+e.vz*.8+rnd(-.8,.8))/60;}
@@ -2350,7 +1879,7 @@ function villUpdate(dt){
   if(!vRaid&&vDayT>=RAID_AT-12&&!vWarned){vWarned=true;banner('Smoke on the horizon. Raiders are coming.',2600);sfx('horn',.4);}
   if(!vRaid&&vDayT>=RAID_AT)spawnRaid();
   else if(vRaid&&en===0){
-    vRaid=false;vDay++;vDayT=0;vWarned=false;const bonus=20+vDay*5;vCoins+=bonus;vProsper+=25;
+    vRaid=false;vDay++;vDayT=0;vWarned=false;const bonus=20+vDay*5;vCoins+=bonus;vProsper+=25;gainGems(15);
     for(const u of units)if(u.team===0&&!u.isPlayer)u.hp=Math.min(u.maxhp,u.hp+30);
     ensureGuards(4);if(civs<16&&vProsper>=30)makeVillager(vIdx++);
     if(vDay>V_DAYS){if(CAMP.on){campWin();return;}showMenu('victory');$('mTitle').textContent='The kingdom is saved';$('mSub').textContent='You survived '+V_DAYS+' nights of raids with '+civs+' villagers and '+vCoins+' coins. Prosperity: '+vProsper+'.';$('mGo').textContent='Defend again';return;}
@@ -2534,7 +2063,7 @@ function mpTick(dt){
   if(!MP.inMatch)return;
   MP.t+=dt;MP.tP-=dt;
   if(MP.tP<=0&&player){MP.tP=.1;const p=player;
-    mpSend({t:'p',id:MP.id,n:MP.name||'Warlord',x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+p.yaw.toFixed(2),w:p.wi,a:p.atkT>=0?1:0,k:p.block?1:0,m:p.mount?1:0,h:Math.round(p.hp),d:p.dead?1:0,f:p.g==='f'?1:0,kl:MP.kills,dh:MP.deaths,ar:MP.mode==='war'?mpMyArmy():0,el:MP.eliminated?1:0});}
+    mpSend({t:'p',id:MP.id,n:MP.name||'Warlord',x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),r:+p.yaw.toFixed(2),w:p.wi,sk:skinOf(p.wi),a:p.atkT>=0?1:0,k:p.block?1:0,m:p.mount?1:0,h:Math.round(p.hp),d:p.dead?1:0,f:p.g==='f'?1:0,kl:MP.kills,dh:MP.deaths,ar:MP.mode==='war'?mpMyArmy():0,el:MP.eliminated?1:0});}
   if(MP.mode==='war'||(MP.host&&MP.mode==='coop')){
     MP.tS-=dt;if(MP.tS<=0){MP.tS=.2;mpSnapshot();}
     if(MP.spawnQ.length){const q=MP.spawnQ.splice(0,MP.spawnQ.length);for(let i=0;i<q.length;i+=60)mpSend({t:'spawn',o:MP.id,u:q.slice(i,i+60)});}
@@ -2577,7 +2106,7 @@ function mpRemoteState(p){
   }
   const u=e.u;if(u.dead)return;
   u.tx=p.x;u.tz=p.z;u.ty=p.y;u.tyaw=p.r;u.hp=p.h;u.block=!!p.k;e.kl=p.kl;e.dh=p.dh;e.name=p.n;e.ar=p.ar;e.el=!!p.el;
-  if(p.w!==u.wi&&WEAPONS[p.w])swapWeapon(u,p.w);
+  if(WEAPONS[p.w]&&(p.w!==u.wi||(p.sk!=null?p.sk:-1)!==(u._sk==null?-1:u._sk))){u._sk=p.sk!=null?p.sk:-1;swapWeapon(u,p.w);}
   if(!!p.m!==!!u.mount){u.mount=!!p.m;if(u.mount)attachHorse(u);else removeHorse(u);}
   if(p.a&&u.atkT<0){u.atkT=0;u.atkDur=.6;}
   if(p.d&&!u.dead)killUnit(u,10,0,0,3,WEAPONS[0],{byAI:true,fromNet:true});
@@ -2921,7 +2450,8 @@ function updateTestHud(){
 /* ------------------------------------------------------------------ campaign */
 const CKEY='warlord-campaign-v1';
 const SPK={n:{n:'Narrator',c:'#cfc7b8',g:'m'},w:{n:null,c:'#f2c75c',g:'m'},a:{n:'Captain Aldric',c:'#7fb6ff',g:'m',p:.9},m:{n:'Queen Maren',c:'#d6a6ff',g:'f',p:1.1},l:{n:'Scout Lyra',c:'#7ddc7d',g:'f'},
-  e:{n:'Elder Brenna',c:'#e8c46a',g:'f',p:.9},v:{n:'Duke Varek',c:'#ff7a6a',g:'m',p:.7},d:{n:'Marshal Dorn',c:'#ff9a6a',g:'m',p:.8},j:{n:'The Jailer',c:'#c0a080',g:'m',p:.7}};
+  e:{n:'Elder Brenna',c:'#e8c46a',g:'f',p:.9},v:{n:'Duke Varek',c:'#ff7a6a',g:'m',p:.7},d:{n:'Marshal Dorn',c:'#ff9a6a',g:'m',p:.8},j:{n:'The Jailer',c:'#c0a080',g:'m',p:.7},c:{n:'Chancellor Orsen',c:'#9fb0c8',g:'m',p:.95},k:{n:'Spymaster Kaine',c:'#b8b8c0',g:'m',p:.85},h:{n:'Captain Hale',c:'#d0a070',g:'m',p:.75}};
+const ACTS=['','Act I: Ashes','Act II: The Traitor','Act III: The Last Warlord'];
 const FREE_LINES=['Thank you, Warlord!','I knew you would come!','Free at last!'];
 const PROLOGUE=[
   ['n','The kingdom of Aurelia stands at the edge of ruin. In the north, Duke Varek and his Black Banner burn village after village.'],
@@ -2932,30 +2462,59 @@ const campEnemies=()=>{let n=0;for(const u of units)if(u.team===1&&!u.dead)n++;r
 const campBossFrac=()=>CAMP.boss&&!CAMP.boss.dead?CAMP.boss.hp/CAMP.boss.maxhp:0;
 const campFreed=()=>ROOM.subjects.filter(u=>!u.tied&&!u.dead).length;
 const CHAPTERS=[
- {id:1,title:'The Black Banner',type:'battle',allies:12,enemies:14,win:'enemies',
+ {id:1,act:1,title:'The Black Banner',type:'battle',allies:12,enemies:14,win:'enemies',
   intro:[['a','Warlord! The Black Banner raiders are in the fields ahead. Twelve of our soldiers are with you.'],['a','Press Z to order a charge, X to hold the line and C to make them follow you. F is a rally cry. Switch weapons with 1 to 0.'],['w','Then let us show them what the crown steel feels like.']],
   outro:[['a','Well fought! The raiders flee. But their banners carried a message: Duke Varek is gathering strength in the north.'],['w','Then we do not stop here.']],
   events:[{id:'half',cond:()=>campEnemies()<=7,lines:[['a','They are breaking! Keep the pressure on!']]}]},
- {id:2,title:'Smoke over Millbrook',type:'village',days:2,
+ {id:2,act:1,title:'Smoke over Millbrook',type:'village',days:2,
   intro:[['e','Warlord, they come at night. Our people are frightened. The village needs water, firewood and bread, and you can hire guards at the town board.'],['w','Talk to the villagers with E and help where you can. I will hold Millbrook for two nights.'],['e','Then may the dawn find us alive.']],
   outro:[['e','Millbrook lives because of you. Take this news with you: the raiders spoke of a prison beneath Ironhold.'],['w','Then that is where I go next.']],
   events:[{id:'d2',cond:()=>vDay>=2&&vDayT>3,lines:[['e','One night survived. They will come harder tomorrow, Warlord.']]}]},
- {id:3,title:'The Dungeon of Ironhold',type:'dungeon',captives:3,
+ {id:3,act:1,title:'The Dungeon of Ironhold',type:'dungeon',captives:3,
   intro:[['l','Warlord, our scouts were taken to the dungeon beneath Ironhold. Free them before the Jailer wakes the garrison.'],['w','Quietly, then. I will cut the ropes myself.'],['l','Press E beside each captive. Freed scouts will follow you.']],
   outro:[['l','The scouts say Varek marshal, Dorn, holds the gate of Ironhold. If he falls, the garrison will break.'],['w','Then Dorn is next.']],
   events:[{id:'free1',cond:()=>campFreed()>=1&&!CAMP.boss,lines:[['l','One free! Hurry, the rest are chained deeper in.']]},
           {id:'amb',cond:()=>!CAMP.boss&&ROOM.subjects.length>0&&ROOM.subjects.filter(u=>!u.dead).length>0&&ROOM.subjects.filter(u=>!u.dead).every(u=>!u.tied),lines:[['j','Who dares unchain MY prisoners?!'],['w','The one who will put you in a cell.']],act:()=>campAmbush()}]},
- {id:4,title:'Siege of Ironhold',type:'battle',allies:24,enemies:30,win:'boss',boss:{name:'Marshal Dorn',wi:1,hp:380,mount:true},
+ {id:4,act:1,title:'Siege of Ironhold',type:'battle',allies:24,enemies:30,win:'boss',boss:{name:'Marshal Dorn',wi:1,hp:380,mount:true},
   intro:[['a','Ironhold walls are strong, but Marshal Dorn is the heart of it. Cut him down and the garrison breaks.'],['w','Then I will find him on the field.'],['d','Come, little warlord. I will hang you from my gate.']],
-  outro:[['d','Varek... will not forgive...'],['a','The road to Brightholt is open, Warlord. Varek is marching to meet us there.']],
+  outro:[['d','Varek... was never alone. The royal treasury pays for every blade...'],['a','Warlord, look at this ledger. It carries the royal treasury seal.'],['w','Someone in the capital is feeding the Black Banner.'],['a','Then we find out who. But first, the advance guard of Varek is crossing the river ford.']],
   events:[{id:'half',cond:()=>campBossFrac()>0&&campBossFrac()<.5,lines:[['d','You fight well, Warlord. For a farmer champion.']]}]},
- {id:5,title:'Dusk at Brightholt',type:'battle',allies:20,enemies:16,win:'survive',survive:130,waves:[28,62,96],
-  intro:[['m','Varek marches on Brightholt with everything he has. Hold the ford until dawn. Reinforcements will come at first light.'],['w','Then we hold, whatever it costs.'],['a','They will come in waves, Warlord. Rally your soldiers with F when it gets bad.']],
-  outro:[['m','Dawn! The Black Banner breaks and runs. You held the ford, Warlord.'],['a','Varek is making his last stand. Everything ends at his camp.']],
+ {id:5,act:2,title:'The Ford at Dusk',type:'battle',allies:20,enemies:16,win:'survive',survive:130,waves:[28,62,96],
+  pre:[['n','ACT II: THE TRAITOR. The Black Banner is wounded, but the hand that fed it is still hidden.']],
+  intro:[['a','The advance guard of Varek is crossing the river ford at dusk. Hold it until dawn, Warlord.'],['w','They will not cross while I draw breath.'],['a','They come in waves. Rally your soldiers with F when it gets bad.']],
+  outro:[['a','Dawn. The ford is ours and the Black Banner is broken here.'],['l','Warlord, a rider from the capital. Chancellor Orsen requests your return at once, in the name of the Queen.'],['w','Orsen. He never once rode to our aid. Let us see what he wants.']],
   events:[]},
- {id:6,title:'The Last Warlord',type:'battle',allies:22,enemies:22,win:'boss',boss:{name:'Duke Varek',wi:4,hp:600},
+ {id:6,act:2,title:'Whisper Pass',type:'battle',allies:10,enemies:22,win:'enemies',ambush:true,obj:'Survive the ambush',
+  intro:[['n','The road to the capital runs through Whisper Pass, a narrow canyon where every sound carries for miles.'],['l','Warlord, stop. There are no birds singing.'],['a','Ambush! Form up around the Warlord!']],
+  outro:[['l','Look at the arrows. The royal crest, filed down and painted black.'],['w','Someone in the palace wants me dead before I arrive.'],['a','We cannot trust the capital road. Millbrook is close. We can regroup there.']],
+  events:[{id:'half',cond:()=>campEnemies()<=10,lines:[['l','Their arrows carry the royal crest! These are no raiders!']]}]},
+ {id:7,act:2,title:'Harvest of Ash',type:'village',days:3,
+  intro:[['e','Warlord! You come at the harvest festival, and at the worst time. Strangers have been asking after you.'],['w','Then they will come tonight. Millbrook will stand for three nights.'],['e','We have little, but the well, the stall and the woodpile are yours. Hire guards at the board.']],
+  outro:[['e','The raiders spoke of one name. Orsen. They were paid by the Chancellor.'],['w','Then the Chancellor holds the capital and the Queen ear. I need proof and allies.'],['l','Loyal ministers were taken to the cellars under the palace. I know a way in.']],
+  events:[{id:'d2',cond:()=>vDay>=2&&vDayT>3,lines:[['e','Two nights now. These are no ordinary raiders. They wear good boots and carry coin.']]},
+          {id:'d3',cond:()=>vDay>=3&&vDayT>3,lines:[['e','The last night. I saw a ring on their leader hand. A chancellor ring.']]}]},
+ {id:8,act:2,title:'The Chancellor Cellar',type:'dungeon',captives:3,amb:{guards:4,boss:{name:'Captain Hale',wi:2,hp:420}},
+  intro:[['l','The cellar door is behind the old kitchens. Three ministers are chained down there, the last honest voices at court.'],['w','Quiet steps. Free them, then we leave.'],['l','Press E beside each prisoner.']],
+  outro:[['l','The ministers say Orsen means to crown Duke Varek at midnight, with the Queen own seal.'],['a','Then we storm the Gate of Aurelia tonight.']],
+  events:[{id:'free1',cond:()=>campFreed()>=1&&!CAMP.boss,lines:[['l','One free. Keep going, the guards change soon.']]},
+          {id:'amb',cond:()=>!CAMP.boss&&ROOM.subjects.length>0&&ROOM.subjects.filter(u=>!u.dead).length>0&&ROOM.subjects.filter(u=>!u.dead).every(u=>!u.tied),lines:[['h','Intruders! Orsen said the Warlord would come sniffing.'],['w','Then Orsen is expecting me. Good.']],act:()=>campAmbush()}]},
+ {id:9,act:3,title:'The Gate of Aurelia',type:'battle',allies:24,enemies:28,win:'boss',boss:{name:'Chancellor Orsen',wi:5,hp:460},
+  pre:[['n','ACT III: THE LAST WARLORD. The traitor stands revealed, and the capital gate is all that stands between the Warlord and the truth.']],
+  intro:[['c','Warlord. I wondered if the arrows in the pass would be enough. Evidently not.'],['w','You sold the kingdom, Orsen. I have the ledger and the ministers.'],['c','I sold a failing crown to a strong man. History will thank me.']],
+  outro:[['c','Too late... the Queen is already in the hands of the Duke...'],['a','Warlord, the Black Tower. That is where they have taken her.'],['w','Then we go there tonight.']],
+  events:[{id:'half',cond:()=>campBossFrac()>0&&campBossFrac()<.5,lines:[['c','Guards! Stop him! The Duke must not be kept waiting!']]}]},
+ {id:10,act:3,title:'The Black Tower',type:'dungeon',captives:1,captiveName:'Queen Maren',amb:{guards:5,boss:{name:'Spymaster Kaine',wi:3,hp:480}},
+  intro:[['n','The Black Tower rises above the capital, a prison older than the crown.'],['l','The Queen is held in the lowest cell. Kaine the Spymaster keeps the keys.'],['w','Then I will take them from him.']],
+  outro:[['m','Warlord... I should have trusted you sooner. Orsen deceived us all.'],['m','Varek marches on Brightholt with his full host. All of Aurelia hangs on that hill.'],['w','Then the crown and its warlord will be there.']],
+  events:[{id:'free1',cond:()=>campFreed()>=1&&!CAMP.boss,lines:[['m','You came for me yourself? Quickly, before the guards return.']]},
+          {id:'amb',cond:()=>!CAMP.boss&&ROOM.subjects.length>0&&ROOM.subjects.filter(u=>!u.dead).length>0&&ROOM.subjects.filter(u=>!u.dead).every(u=>!u.tied),lines:[['k','The Warlord himself. How generous of you to deliver yourself.'],['w','Step aside, Spymaster.']],act:()=>campAmbush()}]},
+ {id:11,act:3,title:'The Long Night at Brightholt',type:'battle',allies:28,enemies:20,win:'survive',survive:150,waves:[15,40,65,90,115],
+  intro:[['m','Brightholt is the last wall between Varek and the crown. Hold it until dawn.'],['a','I have called every soldier in Aurelia. They will come in waves, Warlord. So will he.'],['w','Then we hold the night.']],
+  outro:[['a','Dawn! The Black Banner breaks!'],['l','Varek himself is riding to the field. He wants you, Warlord.'],['w','Then let him come. This ends today.']],
+  events:[{id:'horn',cond:()=>CAMP.t>=100,lines:[['v','Do you hear that, little Warlord? That is the sound of your kingdom ending.']]}]},
+ {id:12,act:3,title:'The Last Warlord',type:'battle',allies:22,enemies:18,win:'boss',boss:{name:'Duke Varek',wi:4,hp:650},
   intro:[['v','So the crown puppet comes at last. I will take your head and your kingdom.'],['w','Aurelia is not yours to take, Duke.'],['v','Then die defending it!']],
-  outro:[['v','Impossible... I was to be king...'],['n','With Duke Varek fallen, the Black Banner scatters to the winds. Aurelia is safe, for now.'],['m','You have saved the kingdom, Warlord. Aurelia will remember your name.'],['n','THE END. Thank you for playing.']],
+  outro:[['v','Impossible... I was to be king...'],['a','The Black Banner is scattering, Warlord. It is over.'],['m','Aurelia owes you more than any crown can repay. Kneel, Warlord.'],['w','I kneel for no one, my Queen. But I will stand with Aurelia.'],['m','Then stand as its First Marshal, today and always.'],['n','With Duke Varek fallen and the traitors exposed, the kingdom slowly heals. Songs are sung of the Warlord of Aurelia.'],['n','THE END. Thank you for playing.']],
   events:[{id:'half',cond:()=>campBossFrac()>0&&campBossFrac()<.5,lines:[['v','Enough! I will end this myself!']],act:()=>{if(CAMP.boss)CAMP.boss.speed*=1.25;}}]}
 ];
 function campLoadSave(){
@@ -3002,33 +2561,40 @@ function spawnBoss(d,x,z){
   const b=makeUnit(1,x,z,d.wi,{hp:d.hp,armor:'plate',mount:!!d.mount,f:false});
   b.boss=true;b.name=d.name;b.speed=Math.max(b.speed,3.6);b.label=mpLabel(d.name,'#ff7a6a');scene.add(b.label);b.meshes.push(b.label);CAMP.boss=b;return b;
 }
+function spawnRing(team,n,hp,cx,cz,r0,r1){
+  let i=0,fi=team;
+  while(i<n){const k=Math.min(n-i,rndi(3,5)),a=rnd(0,6.283),r=rnd(r0,r1),sx=cx+Math.cos(a)*r,sz=cz+Math.sin(a)*r;
+    for(let j=0;j<k;j++,i++){const lo=loadout(i,hp);makeUnit(team,clamp(sx+rnd(-4,4),-130,130),clamp(sz+rnd(-4,4),-135,135),lo.wi,{hp:lo.hp,f:(fi++)%2===0,armor:lo.armor,mount:lo.mount});}}
+}
 function campSpawn(){
-  const c=CAMP.ch;
-  spawnSide(0,c.allies,75,44,92);spawnSide(1,c.enemies,58+c.id*5,44,92);
-  if(c.boss)spawnBoss(c.boss,0,-62);
+  const c=CAMP.ch,eh=58+c.id*4;
+  spawnSide(0,c.allies,75,44,92);
+  if(c.ambush)spawnRing(1,c.enemies,eh,0,52,16,26);else spawnSide(1,c.enemies,eh,44,92);
+  if(c.boss)spawnBoss(c.boss,0,c.ambush?30:-62);
   const wi=player?player.wi:0;
   player=makeUnit(0,0,52,wi,{player:true,hp:200,f:S.pg==='f',armor:'mail'});player.cdw=0;
 }
 function campAmbush(){
-  for(let i=0;i<4;i++)makeUnit(1,ROOM.cx+rnd(-6,6),ROOM.cz+rnd(8,10),pick([0,1,3]),{hp:90,armor:'mail',f:i%2===0});
-  spawnBoss({name:'The Jailer',wi:2,hp:350},ROOM.cx,ROOM.cz+9);sfx('horn');
+  const a=CAMP.ch.amb||{guards:4,boss:{name:'The Jailer',wi:2,hp:350}};
+  for(let i=0;i<a.guards;i++)makeUnit(1,ROOM.cx+rnd(-6,6),ROOM.cz+rnd(8,10),pick([0,1,3]),{hp:90,armor:'mail',f:i%2===0});
+  spawnBoss(a.boss,ROOM.cx,ROOM.cz+9);sfx('horn');
 }
 function campBegin(i){
   const c=CHAPTERS[i];CAMP.on=true;CAMP.idx=i;CAMP.ch=c;CAMP.mode={battle:'war',village:'village',dungeon:'test'}[c.type];
   CAMP.t=0;CAMP.done=false;CAMP.ev={};CAMP.boss=null;CAMP.waveI=0;wave=1;kills=0;
-  startBattle();player.name=CAMP.name;banner('Chapter '+c.id+': '+c.title,2600);
+  startBattle();player.name=CAMP.name;if(c.captiveName)ROOM.subjects.forEach(u=>{u.name=c.captiveName;u.g='f';});banner('Chapter '+c.id+': '+c.title,2600);
   if(S.ctl!=='touch')lockPointer();
 }
 function campStart(i,skip){
   const c=CHAPTERS[i];if(!c)return;
   CAMP.name=($('campName').value||CAMP.save.name||'Warlord').trim().slice(0,16)||'Warlord';CAMP.save.name=CAMP.name;campSaveStore();
   $('campPanel').hidden=true;$('menu').hidden=true;initAudio();unlockSpeech();
-  const lines=skip?[]:((i===0&&!CAMP.save.done.length?PROLOGUE:[]).concat(c.intro));
+  const lines=skip?[]:((i===0&&!CAMP.save.done.length?PROLOGUE:[]).concat(c.pre||[]).concat(c.intro));
   dialog(lines,()=>campBegin(i));
 }
 function campWin(){
   if(CAMP.done)return;CAMP.done=true;const c=CAMP.ch;
-  if(!CAMP.save.done.includes(c.id))CAMP.save.done.push(c.id);CAMP.save.kills+=Math.max(0,kills);campSaveStore();
+  if(!CAMP.save.done.includes(c.id)){CAMP.save.done.push(c.id);gainGems(60+(c.boss?40:0));}CAMP.save.kills+=Math.max(0,kills);campSaveStore();
   dialog(c.outro,()=>{
     state='end';banner('Progress saved',1600);
     const last=CAMP.save.done.length>=CHAPTERS.length;
@@ -3060,7 +2626,7 @@ function campUpdate(dt){
 function campHud(){
   const c=CAMP.ch;if(!c)return;let o='';
   if(c.type==='battle'){
-    if(c.win==='enemies')o='Defeat the raiders ('+campEnemies()+' left)';
+    if(c.win==='enemies')o=(c.obj||'Defeat the raiders')+' ('+campEnemies()+' left)';
     else if(c.win==='boss')o=(CAMP.boss&&!CAMP.boss.dead)?'Defeat '+CAMP.boss.name:'Finish the fight';
     else o='Hold the ford until dawn: '+Math.max(0,Math.ceil(c.survive-CAMP.t))+'s';
   }else if(c.type==='village')o='Defend Millbrook: night '+Math.min(vDay,V_DAYS)+' of '+V_DAYS;
@@ -3075,19 +2641,21 @@ function quitToMenu(){
   document.body.classList.remove('god','vill','test','camp');$('hud').hidden=true;$('objective').hidden=true;$('bossBar').hidden=true;
   clearAll();player=null;wave=1;kills=0;nightK=0;updateNight(0,0);spawnArmies();prep=999;buildVM();syncUI();showMenu('start');
 }
-function campExportCode(){return btoa(unescape(encodeURIComponent(JSON.stringify(CAMP.save))));}
+function campExportCode(){return btoa(unescape(encodeURIComponent(JSON.stringify({c:CAMP.save,s:{gems:SK.gems,own:SK.own,eq:SK.eq,pity:SK.pity,pulls:SK.pulls}}))));}
 function campImportCode(code){
-  try{const v=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
-    if(!v||!Array.isArray(v.done))return false;
-    CAMP.save={done:v.done.filter(i=>CHAPTERS.some(c=>c.id===i)),name:String(v.name||'').slice(0,16),kills:+v.kills||0};campSaveStore();return true;}
-  catch(e){return false;}
+  try{const v=JSON.parse(decodeURIComponent(escape(atob(code.trim())))),c=v.c||v;
+    if(!c||!Array.isArray(c.done))return false;
+    CAMP.save={done:c.done.filter(i=>CHAPTERS.some(x=>x.id===i)),name:String(c.name||'').slice(0,16),kills:+c.kills||0};campSaveStore();
+    if(v.s&&typeof v.s==='object'){SK.gems=Math.max(0,+v.s.gems||0);SK.own=v.s.own||{};SK.eq=v.s.eq||{};SK.pity=+v.s.pity||0;SK.pulls=+v.s.pulls||0;saveSkins();}
+    return true;}catch(e){return false;}
 }
 function campPanelOpen(msg){
   const sv=CAMP.save;$('menu').hidden=true;$('campPanel').hidden=false;
   if(!$('campName').value)$('campName').value=sv.name||CAMP.name||'';
   $('campSub').textContent=msg||('Progress: '+sv.done.length+' of '+CHAPTERS.length+' chapters complete.');
-  const list=$('campList');list.innerHTML='';
+  const list=$('campList');list.innerHTML='';let lastAct=0;
   CHAPTERS.forEach((c,i)=>{
+    if(c.act!==lastAct){lastAct=c.act;const h=document.createElement('div');h.style.cssText='font-weight:700;margin-top:10px';h.textContent=ACTS[c.act];list.appendChild(h);}
     const done=sv.done.includes(c.id),open=i===0||sv.done.includes(CHAPTERS[i-1].id),row=document.createElement('div');row.className='crow';
     const t=document.createElement('span');t.textContent='Chapter '+c.id+': '+c.title+(done?'  (complete)':open?'':'  (locked)');row.appendChild(t);
     const b=document.createElement('button');b.className='mpb alt';b.textContent=done?'Replay':'Play';b.disabled=!open;b.addEventListener('click',()=>campStart(i,false));row.appendChild(b);list.appendChild(row);
@@ -3109,12 +2677,92 @@ function campBind(){
   $('mQuit').addEventListener('click',quitToMenu);
 }
 
+/* -------------------------------------------------------- weapon skins and gacha */
+const SKEY='warlord-skins-v1',ARM_COST=50;
+const TIERS=[{n:'Common',c:'#b8b8b8',w:.40,r:5},{n:'Uncommon',c:'#6fdc6f',w:.25,r:10},{n:'Rare',c:'#4aa8ff',w:.15,r:25},{n:'Epic',c:'#b060ff',w:.10,r:60},
+  {n:'Legendary',c:'#ffb020',w:.05,r:150},{n:'Mythic',c:'#ff4a6a',w:.03,r:350},{n:'Divine',c:'#fff0a0',w:.015,r:800},{n:'Cosmic',c:'#ff7ae0',w:.005,r:2000}];
+const THEMES=[
+  ['Rusty',0,0x8a5a3a,0x4a3a2a,0,0],['Worn',0,0x9a9a94,0x5a4a3a,0,0],['Plain',0,0xb0b4b8,0x4a4a4a,0,0],['Dull',0,0x777b80,0x333333,0,0],
+  ['Iron',1,0x9aa3ab,0x3a3a40,0,0],['Hardened',1,0xb8b0a0,0x6b4423,0,0],['Polished',1,0xdfe4e8,0x888888,0,0],['Bronze',1,0xb58a45,0x5a3d22,0,0],
+  ['Frost',2,0xa6e1ff,0x3a6ea5,0x4aa8ff,.35],['Ember',2,0xff8a4a,0x4a1a10,0xff5a10,.4],['Jade',2,0x6fdc9a,0x1d5a3a,0x30c070,.3],
+  ['Void',3,0x6a3fd0,0x1a0f33,0x7a30ff,.5],['Crimson',3,0xd02a3a,0x2a0a10,0xff2030,.45],['Storm',3,0x7fb4ff,0xe8e8ff,0xaad0ff,.5],
+  ['Dragon',4,0xff6a1a,0x5a1a0a,0xff4a00,.7],['Solar',4,0xffd24a,0xfff0b0,0xffc020,.75],
+  ['Phoenix',5,0xff4a2a,0xffcf40,0xff6a20,.9],['Abyssal',5,0x0a3a5a,0x00e0c0,0x00e0c0,.8],
+  ['Celestial',6,0xfff6cf,0xf2c75c,0xfff0a0,1],['Galactic',7,0x2a1a6a,0xff7ae0,0xb060ff,1.2]
+];
+function skLoad(){
+  try{const v=JSON.parse(localStorage.getItem(SKEY)||'null');if(v&&typeof v==='object')return{gems:Math.max(0,+v.gems||0),own:v.own||{},eq:v.eq||{},pity:+v.pity||0,pulls:+v.pulls||0};}catch(e){}
+  return{gems:100,own:{},eq:{},pity:0,pulls:0};
+}
+const SK=Object.assign(skLoad(),{dirty:false}),SKIN_ACTIVE=[],skinCache={};
+function saveSkins(){try{localStorage.setItem(SKEY,JSON.stringify({gems:SK.gems,own:SK.own,eq:SK.eq,pity:SK.pity,pulls:SK.pulls}));}catch(e){}}
+function gainGems(n){SK.gems+=n;SK.dirty=true;}
+const skOwned=(wi,k)=>(SK.own[wi]||[]).includes(k);
+function skinOf(wi){const k=SK.eq[wi];return(k!=null&&skOwned(wi,k))?k:-1;}
+function skinFor(s,wi){return s.isPlayer?skinOf(wi):(s._sk>=0?s._sk:-1);}
+function skinMats(k){
+  const th=THEMES[k],c1=new THREE.Color(th[2]),c2=new THREE.Color(th[3]),em=th[4]?new THREE.Color(th[4]):null,I=th[5];
+  const m=(col,f)=>{const o={color:col};if(em){o.emissive=em.clone();o.emissiveIntensity=I*f;}return new THREE.MeshLambertMaterial(o);};
+  const mats={steel:m(c1,1),steelD:m(c1.clone().multiplyScalar(.55),.5),gold:m(c2,.4),wood:m(c2.clone().multiplyScalar(.7),0),dark:m(c2.clone().multiplyScalar(.45),0)};
+  if(th[1]>=6)for(const key of['steel','gold'])SKIN_ACTIVE.push({mat:mats[key],base:mats[key].emissiveIntensity,tier:th[1]});
+  return mats;
+}
+function protoFor(wi,k){
+  if(k==null||k<0)return protos[wi];
+  const key=wi+':'+k;return skinCache[key]||(skinCache[key]=buildWeapon(wi,skinMats(k)));
+}
+function pickTier(min){let tot=0;for(let i=min;i<8;i++)tot+=TIERS[i].w;let r=Math.random()*tot;for(let i=min;i<8;i++){r-=TIERS[i].w;if(r<=0)return i;}return min;}
+function gachaPull(wi){
+  SK.pity++;const t=SK.pity>=40?pickTier(4):pickTier(0);if(t>=4)SK.pity=0;
+  const pool=[];THEMES.forEach((th,k)=>{if(th[1]===t)pool.push(k);});const k=pick(pool),dup=skOwned(wi,k);
+  if(dup)SK.gems+=TIERS[t].r;else{(SK.own[wi]=SK.own[wi]||[]).push(k);}
+  return{wi,k,t,dup,refund:dup?TIERS[t].r:0};
+}
+let armSel=0;
+function armoryOpen(){$('menu').hidden=true;$('armory').hidden=false;armRender();}
+function armEquip(k){
+  if(k<0)delete SK.eq[armSel];else SK.eq[armSel]=k;saveSkins();
+  if(player){swapWeapon(player,player.wi);buildVM();syncUI();}armRender();
+}
+function armRender(){
+  $('armGems').textContent=SK.gems;$('armPulls').textContent=SK.pulls;$('armPity').textContent=SK.pity;
+  const wb=$('armWeapons');wb.innerHTML='';
+  WEAPONS.forEach((w,i)=>{const b=document.createElement('button');b.textContent=w.n;b.setAttribute('aria-pressed',String(i===armSel));b.addEventListener('click',()=>{armSel=i;$('armResult').innerHTML='';armRender();});wb.appendChild(b);});
+  $('armRates').textContent='Pull rates: '+TIERS.map(t=>t.n+' '+(t.w*100).toFixed(1)+'%').join(', ')+'. A Legendary or better is guaranteed every 40 pulls. A duplicate refunds gems.';
+  const g=$('armGrid');g.innerHTML='';
+  const card=(label,sub,c1,c2,glow,tc,owned,eq,onclick)=>{
+    const d=document.createElement('div');d.className='sk'+(owned?'':' locked');d.style.borderColor=tc;
+    const sw=document.createElement('div');sw.className='sw';sw.style.background='linear-gradient(135deg,'+c1+','+c2+')';if(glow)sw.style.boxShadow='0 0 12px '+glow;d.appendChild(sw);
+    const b=document.createElement('b');b.textContent=label;d.appendChild(b);const t=document.createElement('span');t.textContent=sub;t.style.color=tc;d.appendChild(t);
+    if(owned){const btn=document.createElement('button');btn.textContent=eq?'Equipped':'Equip';btn.disabled=eq;btn.addEventListener('click',onclick);d.appendChild(btn);}
+    g.appendChild(d);
+  };
+  const hex=n=>'#'+n.toString(16).padStart(6,'0'),cur=SK.eq[armSel];
+  card('Default look','Standard','#c4cbd2','#6b4423',null,'#888',true,cur==null||!skOwned(armSel,cur),()=>armEquip(-1));
+  THEMES.forEach((th,k)=>{const own=skOwned(armSel,k),tier=TIERS[th[1]];
+    card(own?th[0]+' '+WEAPONS[armSel].n:'???',tier.n,own?hex(th[2]):'#555',own?hex(th[3]):'#333',own&&th[4]?hex(th[4]):null,tier.c,own,cur===k&&own,()=>armEquip(k));});
+  $('armPull1').disabled=SK.gems<ARM_COST;$('armPull10').disabled=SK.gems<ARM_COST*9;
+}
+function armPull(n){
+  const cost=n===10?ARM_COST*9:ARM_COST;if(SK.gems<cost)return;SK.gems-=cost;
+  const res=[];for(let i=0;i<n;i++)res.push(gachaPull(armSel));SK.pulls+=n;saveSkins();
+  const out=$('armResult');out.innerHTML='';let best=0;
+  res.forEach((r,i)=>{best=Math.max(best,r.t);const d=document.createElement('div');d.className='sres';d.style.borderColor=TIERS[r.t].c;d.style.animationDelay=(i*.08)+'s';
+    d.textContent=THEMES[r.k][0]+' '+WEAPONS[r.wi].n+'  ['+TIERS[r.t].n+']  '+(r.dup?'duplicate, +'+r.refund+' gems':'NEW!');out.appendChild(d);});
+  if(best>=4)sfx('horn',.25);armRender();
+}
+function armBind(){
+  $('mArmory').addEventListener('click',armoryOpen);
+  $('armClose').addEventListener('click',()=>{$('armory').hidden=true;$('menu').hidden=false;});
+  $('armPull1').addEventListener('click',()=>armPull(1));$('armPull10').addEventListener('click',()=>armPull(10));
+}
+
 const vm=new THREE.Group();camera.add(vm);let vmW=null;
 const vmArm=new THREE.Mesh(new THREE.CylinderGeometry(.045,.05,.55,6),matSteel);vmArm.position.set(0,-.12,.28);vmArm.rotation.x=1.98;
 const vmHand=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),matSkin);
 function buildVM(){
   while(vm.children.length)vm.remove(vm.children[0]);
-  const w=player.w,c=w.fp;vmW=protos[player.wi].clone();vmW.scale.setScalar(1);vm.add(vmW);vm.add(vmArm);vm.add(vmHand);
+  const w=player.w,c=w.fp;vmW=protoFor(player.wi,skinOf(player.wi)).clone();vmW.scale.setScalar(1);vm.add(vmW);vm.add(vmArm);vm.add(vmHand);
   vm.userData={bp:c.p.slice(),br:c.r.slice()};vm.position.set(c.p[0],c.p[1],c.p[2]);vm.rotation.set(c.r[0],c.r[1],c.r[2]);
 }
 function updateVM(dt){
@@ -3296,7 +2944,7 @@ function updateCamera(dt,realDt){
 }
 function updateHUD(){
   let a=0,e=0;for(const u of units){if(u.team===0&&!u.isPlayer)a++;else if(u.team===1)e++;}
-  $('cAlly').textContent=a;$('cEnemy').textContent=e;$('cKills').textContent=kills;$('cWave').textContent=wave;$('cReinf').textContent=reinfLeft;drawRadar();
+  $('cAlly').textContent=a;$('cEnemy').textContent=e;$('cKills').textContent=kills;$('cWave').textContent=wave;$('gemTag').textContent='Gems '+SK.gems;if(SK.dirty){SK.dirty=false;saveSkins();}$('cReinf').textContent=reinfLeft;drawRadar();
   if(VILL)updateVillHud();if(TEST)updateTestHud();if(CAMP.on)campHud();else{$('objective').hidden=true;$('bossBar').hidden=true;}$('mpBoard').hidden=!MP.inMatch;if(MP.inMatch)updateMpBoard();$('godTag').hidden=!GOD;if(GOD)$('godTag').textContent='God mode: '+TOOLS[godTool].n+' ('+TOOLS[godTool].d+') | '+['Time normal','Slow motion','Time frozen','Fast time'][godTimeI]+(godPeace?' | Ceasefire (N starts war)':' | War (N for peace)');
   const hp=Math.max(0,Math.round(player.hp));if(hp!==lastHp){lastHp=hp;$('hptxt').textContent=hp;$('hpfill').style.width=(hp/player.maxhp*100)+'%';}
   $('rally').textContent=rallyCd>0?'Rally cry ready in '+Math.ceil(rallyCd)+'s':'Rally cry ready (F)';
@@ -3309,6 +2957,7 @@ let last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
   const real=Math.min(.05,(now-last)/1000);last=now;HDT=real;
+  for(const a of SKIN_ACTIVE){a.mat.emissiveIntensity=a.base*(.75+.25*Math.sin(now/300));if(a.tier===7)a.mat.emissive.setHSL((now/6000)%1,.8,.55);}
   if(state==='play'&&S.gfx!=='std'){fpsA+=real;fpsN++;if(fpsA>5){const f=fpsN/fpsA;fpsA=0;fpsN=0;if(f<26){S.gfx=S.gfx==='ultra'?'high':'std';saveS();syncUI();banner('Graphics lowered for smoother play',1800);}}}else{fpsA=0;fpsN=0;}
   if(state==='play'&&GOD)godFrame(real);
   if((state!=='paused'&&state!=='dialog')||MP.inMatch){update(real*timeScale*(GOD?godTime:1));}
@@ -3324,7 +2973,7 @@ function frame(now){
 /* ----------------------------------------------------------------- boot */
 syncUI();
 spawnArmies();prep=999;buildVM();syncUI();
-mpBind();campBind();
+mpBind();campBind();armBind();
 showMenu('start');
 requestAnimationFrame(frame);
 })();
